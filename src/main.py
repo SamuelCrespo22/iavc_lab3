@@ -4,6 +4,7 @@ from PIL import Image
 from scrfd import SCRFD, Threshold
 
 from capture import open_camera
+from alignment import align_face, keypoints_to_array
 
 detector = SCRFD.from_path(
     "./src/models/scrfd.onnx",
@@ -23,6 +24,10 @@ while True:
     faces = detector.detect(image, threshold=threshold)
 
     for face in faces:
+        kps = keypoints_to_array(face)
+        crop_id   = align_face(frame, kps, size=112)               # ArcFace (Stage 3)
+        crop_attr = align_face(frame, kps, size=224, margin=0.2)   # idade/género/expressão
+        cv.imshow("aligned", crop_id)   # para validar visualmente
         p1, p2 = face.bbox.upper_left, face.bbox.lower_right
         cv.rectangle(frame, (int(p1.x), int(p1.y)), (int(p2.x), int(p2.y)), (0, 255, 0), 2)
         cv.putText(frame, f"{face.probability:.2f}", (int(p1.x), int(p1.y) - 5),
