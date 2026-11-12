@@ -5,7 +5,10 @@ from scrfd import SCRFD, Threshold
 
 from capture import open_camera
 
-detector = SCRFD.from_path("./src/models/scrfd.onnx")
+detector = SCRFD.from_path(
+    "./src/models/scrfd.onnx",
+    providers=["CoreMLExecutionProvider", "CPUExecutionProvider"]
+)
 threshold = Threshold(probability=0.4)
 cap = open_camera()
 

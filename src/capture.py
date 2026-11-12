@@ -1,8 +1,6 @@
 import cv2 as cv
 import sys
 
-cap = cv.VideoCapture(0)
-
 def open_camera(source=0, width=640, height=480):
     cap = cv.VideoCapture(source)
     cap.set(cv.CAP_PROP_FRAME_WIDTH, width)
