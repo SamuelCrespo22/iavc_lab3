@@ -10,6 +10,16 @@ Entrega: **29 de novembro de 2026**.
 | M4 | Interface, desempenho e testes de sistema | 22–25 nov | Ambos | 🟡 Interface e monitorização feitas; falta testar ao vivo, otimizar e fazer os testes 6.2 |
 | M5 | Relatório, vídeo e entrega | 25–29 nov | Ambos | ⚪ Por começar |
 
+## Plano até à entrega
+
+| Dia | O quê |
+|---|---|
+| **23 nov** | Receber da Luciana tudo o que falta da expressão (`.onnx`, `.pth`, script de exportação, métricas do AffectNet e do BTFER) e integrar. Testar a aplicação com a webcam. Script de gráficos, por partes. Revisão completa do código. |
+| **24 nov** | Escrever o relatório que der (deteção, idade/género, identidade, arquitetura) |
+| **26 nov** | Testes ao vivo na aula: testes 6.2, threshold da identidade com pessoas não registadas, gravar o vídeo de demonstração |
+| **28 nov** | Revisão final em conjunto |
+| **29 nov** | Entrega |
+
 ## Situação a 22 nov
 
 **Bloqueios e problemas em aberto**
