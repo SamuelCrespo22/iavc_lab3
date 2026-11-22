@@ -4,7 +4,7 @@ Entrega: **29 de novembro de 2026**.
 
 | # | Milestone | Datas | Responsável | Estado (22 nov, noite) |
 |---|-----------|-------|-------------|-----------------|
-| M1 | Pipeline base + avaliação do detetor | 12–16 nov | Samuel | 🟡 Pipeline e entrada por vídeo feitos; WIDER val descarregado, falta a avaliação |
+| M1 | Pipeline base + avaliação do detetor | 12–16 nov | Samuel | 🟢 Código, avaliação no WIDER (com a comparação extra) e licenças verificados; falta a secção do relatório |
 | M2 | Idade/género e expressão | 12–21 nov | Luciana | 🟡 Idade/género avaliado; expressão sem `.onnx` nem resultados no repositório |
 | M3 | Galeria de identidades | 17–22 nov | Samuel | 🟢 Implementado e avaliado; falta o consentimento escrito |
 | M4 | Interface, desempenho e testes de sistema | 22–25 nov | Ambos | 🟡 Interface e monitorização feitas; falta testar ao vivo, otimizar e fazer os testes 6.2 |
@@ -23,17 +23,6 @@ Entrega: **29 de novembro de 2026**.
 - **`main.py` não foi testado ao vivo.** Foi testado sem janela, com um vídeo feito de imagens do WIDER. Falta confirmar com a webcam: pausa, registo (`e`), apagar (`d`, `x`) e fechar a janela.
 - **Threshold da identidade (0.193) encostado aos impostores:** o critério FAR = 0 na validação põe o threshold no score mais alto de um impostor de validação. Só houve 10 casos de impostor. Na validação e no teste, os genuínos ficaram entre 0.63 e 0.93 e os impostores entre 0.01 e 0.19, por isso qualquer valor entre 0.19 e 0.63 dava os mesmos resultados. Ao vivo, um desconhecido pode passar de 0.19. **Rever nos testes de sistema (M4)** e discutir no relatório.
 
-**Resolvido hoje:**
-- WIDER val descarregado em `data/WIDER/`
-- recorte do `genderage` corrigido
-- janela duplicada eliminada
-- `CAP_AVFOUNDATION` usado só em macOS
-- `src/` reorganizado:
-  - pastas `pipeline/`, `tools/`, `evaluation/` e `training/`
-  - caminhos e limiares em `src/config.py`
-  - pesos em `models/`
-  - comandos com `python -m` a partir da raiz (ver README)
-
 ---
 
 ## M1 — Pipeline base + avaliação do detetor (12–16 nov)
@@ -42,10 +31,25 @@ Entrega: **29 de novembro de 2026**.
 - [x] Alinhamento por landmarks (112×112 e 224×224)
 - [x] Ficheiro de vídeo como entrada alternativa (`capture.py`, `--source`)
 - [x] Estruturas de dados entre módulos: `FaceAnalysis`, `IdentityResult`, `AgeGenderResult`, `ExpressionResult`
-- [ ] Avaliação no WIDER Face (val): AP easy/medium/hard e tempo de inferência. Os dados estão em `data/WIDER/` e o script ainda não existe.
-- [ ] Análise qualitativa: caras pequenas, pose, oclusão, várias caras
+- [x] Avaliação no WIDER Face (val, 3 226 imagens) com `eval_detection_wider.py`. Resultados em `results/detection/`.
+  - **SCRFD-2.5GF (`scrfd.onnx`):** AP 93.2 / 91.3 / 75.2 (easy/medium/hard), 30 ms por imagem.
+  - Com o limiar da aplicação (0.4): precisão 0.92 e recall 0.52. O recall é baixo porque 46% das caras do WIDER têm menos de 16 px.
+  - Os valores estão próximos dos publicados pelo InsightFace para o `scrfd_2.5g_bnkps` (~93.8 / 92.0 / 77.1). A pequena diferença deve-se ao redimensionamento *nearest* da biblioteca `scrfd`, a explicar no relatório. Isto confirma a variante do modelo e o avaliador.
+- [x] Robustez (recall a 0.4, em `robustness.csv`), também calculada só com caras ≥ 32 px para isolar o efeito do tamanho:
+  - **tamanho:** 18% (<16 px) → 69% (16–32) → 88% (32–64) → 96% (≥128)
+  - **oclusão** (caras ≥ 32 px): nenhuma 96% → parcial 83% → forte 60%
+  - **pose** (≥ 32 px): típica 92%, atípica 72%
+  - **várias caras:** o recall desce de 93% (1 cara) para 41% (>20 caras), mas com caras ≥ 32 px fica em 94% → 89%. As multidões são difíceis sobretudo por terem caras pequenas.
+  - 6 imagens de exemplo em `results/detection/scrfd/examples/`
+- [x] **Origem e licença do `scrfd.onnx`.**
+  - Vem de [cospectrum/scrfd](https://github.com/cospectrum/scrfd/tree/main/models). O código desse repositório é Apache 2.0, mas segundo o README dele *"the license applied only to code. The models are a derivative work of InsightFace and are used for testing purposes only"*.
+  - Por isso segue as condições do InsightFace, tal como os outros modelos: uso académico/investigação não comercial é permitido, mas os pesos **não podem ser redistribuídos**. Não entram no repositório nem na entrega; o README indica onde descarregá-los.
+- [ ] **Relatório, secção de deteção.** O enunciado pede que se perceba e explique:
+  - a regressão das caixas, os scores de confiança, os landmarks e o NMS;
+  - o papel do alinhamento.
 
-**Feito quando:** o pipeline corre com webcam ou vídeo e os resultados do WIDER Face estão numa tabela.
+  Inclui uma figura frame → recortes (112 px ArcFace, 224 px expressão, 96 px idade/género), como a da secção 4.1 do enunciado.
+- [ ] Funcionamento estável no portátil (fase 1 do enunciado): coberto pelo teste ao vivo do M4
 
 ## M2 — Idade/género e expressão (12–21 nov)
 
@@ -115,6 +119,13 @@ Entrega: **29 de novembro de 2026**.
 
 ---
 
-## Extra (só se houver tempo)
+## Extra
 
-Comparar o SCRFD leve (`scrfd.onnx`) com o SCRFD-10GF (`det_10g.onnx`) no WIDER Face: AP vs. tempo de inferência. O enunciado sugere esta comparação "if feasible". O `main.py` já aceita `--detector det_10g.onnx`.
+- [x] Comparar o SCRFD-2.5GF com o SCRFD-10GF (`det_10g.onnx`) no WIDER Face (`results/detection/comparison.csv`):
+
+  | Detetor | AP easy | AP medium | AP hard | ms/imagem (média / p95) | Recall a 0.4 |
+  |---|---|---|---|---|---|
+  | SCRFD-2.5GF | 93.2 | 91.3 | 75.2 | 30 / 74 | 0.52 |
+  | SCRFD-10GF | 94.7 | 93.2 | 80.5 | 73 / 106 | 0.57 |
+
+  O 10GF ganha +5 pontos de AP no hard (caras pequenas), mas é 2.4× mais lento. Por isso a aplicação usa o 2.5GF por omissão (`--detector det_10g.onnx` para trocar). O 10GF tem entrada de tamanho variável, o que provavelmente impede o CoreML de o acelerar; isto ajuda a explicar a diferença de tempo.

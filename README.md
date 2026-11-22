@@ -15,8 +15,8 @@ O enunciado completo está em [assignment.pdf](assignment.pdf).
 ## Estado atual
 
 O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo:
-- **Feito:** deteção, alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), interface e monitorização.
-- **Falta:** avaliação do detetor no WIDER Face, modelo ONNX e resultados da expressão, testes de sistema ao vivo, relatório.
+- **Feito:** deteção (avaliada no WIDER Face), alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), interface e monitorização.
+- **Falta:** modelo ONNX e resultados da expressão, testes de sistema ao vivo, relatório.
 
 ## Estrutura do repositório
 
@@ -35,6 +35,7 @@ O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resu
 │   │   └── monitoring.py        #   FPS, latência, CPU e memória
 │   ├── tools/enrol.py           # Gerir a galeria a partir de fotos
 │   ├── evaluation/              # Avaliação de cada componente
+│   │   ├── eval_detection_wider.py
 │   │   ├── eval_identity.py
 │   │   ├── eval_age_gender.py
 │   │   └── eval_expression_btfer.py
@@ -73,13 +74,15 @@ Os pesos **não estão incluídos no repositório** (por tamanho e por termos de
 
 | Ficheiro | Modelo | Uso |
 |----------|--------|-----|
-| `scrfd.onnx` | SCRFD (variante leve, com keypoints) | Deteção de caras (por omissão) |
+| `scrfd.onnx` | SCRFD-2.5GF com keypoints (0.82 M parâmetros; confirmado pelo AP no WIDER) | Deteção de caras (por omissão) |
 | `det_10g.onnx` | SCRFD-10GF | Deteção (alternativa mais precisa, `--detector det_10g.onnx`) |
 | `genderage.onnx` | InsightFace gender-age | Idade e género |
 | `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade |
 | `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Não usados |
 | `expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
 | `expression_best.onnx` | O mesmo modelo exportado para ONNX | Expressão na aplicação (script de exportação por adicionar). Sem ele, a expressão fica desligada. |
+
+O `scrfd.onnx` vem da pasta `models/` do repositório [cospectrum/scrfd](https://github.com/cospectrum/scrfd/tree/main/models), que é o mesmo da biblioteca `scrfd`.
 
 Os ficheiros `det_10g.onnx`, `genderage.onnx`, `w600k_r50.onnx`, `2d106det.onnx` e `1k3d68.onnx` vêm do pack **buffalo_l** do [InsightFace](https://github.com/deepinsight/insightface/tree/master/python-package):
 
@@ -89,7 +92,7 @@ curl -L -o /tmp/buffalo_l.zip https://github.com/deepinsight/insightface/release
 unzip -o /tmp/buffalo_l.zip -d models
 ```
 
-> **Licença:** os modelos pré-treinados do InsightFace estão disponíveis apenas para **investigação não comercial**. Não redistribuir os pesos.
+> **Licença:** os modelos pré-treinados do InsightFace estão disponíveis apenas para **investigação não comercial**. O `scrfd.onnx` do cospectrum/scrfd é um derivado do InsightFace: esse repositório aplica a licença Apache 2.0 só ao código e diz que o modelo é *"used for testing purposes only"*. Por isso segue as mesmas condições. Não redistribuir nenhum dos pesos.
 
 ## Datasets
 
@@ -115,6 +118,7 @@ python -m src.main --source 0 --source video.mp4    # 's' alterna entre as fonte
 python -m src.tools.enrol --all data/dados_caras --images frontal frontal2   # registar a galeria
 python -m src.tools.enrol --list | --remove NOME | --clear
 
+python -m src.evaluation.eval_detection_wider --detector scrfd.onnx --examples 6   # results/detection/
 python -m src.evaluation.eval_identity              # resultados em results/identity/
 python -m src.evaluation.eval_age_gender            # resultados em results/age_gender/
 python -m src.evaluation.eval_expression_btfer      # resultados em results/expression/
