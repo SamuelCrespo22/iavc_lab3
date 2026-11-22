@@ -8,3 +8,4 @@ torchvision
 scikit-learn
 onnx==1.20.1
 onnxscript
+psutil

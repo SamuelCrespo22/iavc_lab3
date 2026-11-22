@@ -1,11 +1,23 @@
-import cv2 as cv
+"""Abertura da fonte de vídeo: webcam (índice, ex. 0) ou ficheiro de vídeo (caminho)."""
 import sys
 
-def open_camera(source=0, width=640, height=480):
-    cap = cv.VideoCapture(source, cv.CAP_AVFOUNDATION)
-    cap.set(cv.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv.CAP_PROP_FRAME_HEIGHT, height)
+import cv2 as cv
+
+
+def parse_source(source: str | int) -> int | str:
+    return int(source) if str(source).isdigit() else str(source)
+
+
+def open_source(source: str | int = 0, width: int = 640, height: int = 480) -> cv.VideoCapture:
+    source = parse_source(source)
+    if isinstance(source, int):
+        # AVFoundation só existe em macOS; nos outros sistemas o OpenCV escolhe o backend.
+        backend = cv.CAP_AVFOUNDATION if sys.platform == "darwin" else cv.CAP_ANY
+        cap = cv.VideoCapture(source, backend)
+        cap.set(cv.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv.CAP_PROP_FRAME_HEIGHT, height)
+    else:
+        cap = cv.VideoCapture(source)
     if not cap.isOpened():
-        print("Cannot open camera")
-        sys.exit(1)
+        raise RuntimeError(f"Não foi possível abrir a fonte de vídeo: {source}")
     return cap
