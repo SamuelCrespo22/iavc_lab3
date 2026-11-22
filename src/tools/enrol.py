@@ -3,14 +3,14 @@ Gestão da galeria de identidades a partir de fotos.
 
 Exemplos (a partir da raiz do repositório):
     # Registar todas as pessoas de data/dados_caras com as mesmas fotos usadas na avaliação
-    python src/enrol.py --all data/dados_caras --images frontal frontal2
+    python -m src.tools.enrol --all data/dados_caras --images frontal frontal2
 
     # Registar uma pessoa a partir de uma pasta (nome = nome da pasta, por omissão)
-    python src/enrol.py --folder data/dados_caras/Joao
+    python -m src.tools.enrol --folder data/dados_caras/Joao
 
-    python src/enrol.py --list
-    python src/enrol.py --remove Joao
-    python src/enrol.py --clear
+    python -m src.tools.enrol --list
+    python -m src.tools.enrol --remove Joao
+    python -m src.tools.enrol --clear
 
 Só é guardado o embedding de cada foto (gallery/gallery.npz), nunca a imagem.
 """
@@ -19,8 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
-from detection import load_detector
-from identity import Gallery, FaceEmbedder, embed_image
+from src.pipeline.detection import load_detector
+from src.pipeline.identity import Gallery, FaceEmbedder, embed_image
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 

@@ -14,32 +14,43 @@ O enunciado completo está em [assignment.pdf](assignment.pdf).
 
 ## Estado atual
 
-| Fase | Descrição | Estado |
-|------|-----------|--------|
-| 1 | Captura da webcam, deteção de caras, bounding boxes e keypoints | ✅ Feito |
-| — | Alinhamento de caras (112×112 para ArcFace, 224×224 com margem para atributos) | ✅ Feito |
-| 2 | Idade/género e expressão facial | ⏳ Por fazer |
-| 3 | Galeria de identidades (registo, embeddings, threshold "Unknown") | ⏳ Por fazer |
-| 4 | Otimização e avaliação | ⏳ Por fazer |
-| 5 | Aplicação final e relatório | ⏳ Por fazer |
+O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo:
+- **Feito:** deteção, alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), interface e monitorização.
+- **Falta:** avaliação do detetor no WIDER Face, modelo ONNX e resultados da expressão, testes de sistema ao vivo, relatório.
 
 ## Estrutura do repositório
 
 ```
 .
 ├── src/
-│   ├── main.py        # Ponto de entrada: loop da webcam, deteção e overlay
-│   ├── capture.py     # Abertura da câmara (OpenCV VideoCapture)
-│   ├── alignment.py   # Alinhamento por landmarks (template ArcFace)
-│   └── models/        # Pesos ONNX (não versionados — ver abaixo)
-├── data/              # Datasets (não versionados — ver abaixo)
-├── assignment.pdf     # Enunciado
+│   ├── main.py                  # Aplicação: webcam/vídeo, análise, overlay, teclas
+│   ├── config.py                # Caminhos, modelos e limiares
+│   ├── pipeline/                # Módulos da aplicação
+│   │   ├── capture.py           #   webcam ou ficheiro de vídeo
+│   │   ├── detection.py         #   SCRFD e recortes para cada modelo
+│   │   ├── alignment.py         #   alinhamento por landmarks (template ArcFace)
+│   │   ├── identity.py          #   embeddings ArcFace e galeria
+│   │   ├── age_gender.py        #   idade e género (InsightFace genderage)
+│   │   ├── expression.py        #   expressão facial (MobileNetV3, AffectNet)
+│   │   └── monitoring.py        #   FPS, latência, CPU e memória
+│   ├── tools/enrol.py           # Gerir a galeria a partir de fotos
+│   ├── evaluation/              # Avaliação de cada componente
+│   │   ├── eval_identity.py
+│   │   ├── eval_age_gender.py
+│   │   └── eval_expression_btfer.py
+│   └── training/
+│       └── train_expression.py  # Fine-tuning da expressão no AffectNet
+├── models/                      # Pesos (não versionados; ver abaixo)
+├── data/                        # Datasets (não versionados; ver abaixo)
+├── gallery/                     # Embeddings da galeria (não versionados)
+├── results/                     # Resultados das avaliações (não versionados)
+├── assignment.pdf               # Enunciado
 └── requirements.txt
 ```
 
 ## Instalação
 
-Requer Python ≥ 3.10 (testado com Python 3.14 em macOS / Apple Silicon).
+Requer Python ≥ 3.10 (testado com Python 3.12 em macOS / Apple Silicon).
 
 ```bash
 python3 -m venv .venv
@@ -47,67 +58,82 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Dependências principais:
-
 | Pacote | Uso |
 |--------|-----|
-| `opencv-python` | Captura de vídeo, alinhamento (transformação afim) e interface |
-| `numpy` | Operações sobre arrays |
-| `onnxruntime` | Inferência dos modelos ONNX (CoreML no macOS, CPU como fallback) |
+| `opencv-python`, `numpy`, `pillow` | Vídeo, alinhamento, interface e operações sobre imagens |
+| `onnxruntime` | Inferência de todos os modelos na aplicação (CoreML no macOS, CPU como fallback) |
 | `scrfd` | Wrapper do detetor SCRFD (pré/pós-processamento e NMS) |
-| `pillow` | Conversão de frames para o formato esperado pelo `scrfd` |
+| `psutil` | CPU e memória no painel de monitorização |
+| `scikit-learn` | Métricas das avaliações |
+| `torch`, `torchvision`, `onnx`, `onnxscript` | Só para treinar o modelo de expressão e exportá-lo para ONNX |
 
 ## Modelos
 
-Os pesos **não estão incluídos no repositório** (por tamanho e por termos de licença). Devem ser colocados em `src/models/`:
+Os pesos **não estão incluídos no repositório** (por tamanho e por termos de licença). Devem ser colocados em `models/`, na raiz do repositório:
 
 | Ficheiro | Modelo | Uso |
 |----------|--------|-----|
-| `scrfd.onnx` | SCRFD (variante leve, com keypoints) | Deteção de caras — usado atualmente |
-| `det_10g.onnx` | SCRFD-10GF | Deteção (alternativa mais precisa, para comparação) |
-| `genderage.onnx` | InsightFace gender-age | Idade e género (Fase 2) |
-| `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade (Fase 3) |
-| `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Opcionais |
+| `scrfd.onnx` | SCRFD (variante leve, com keypoints) | Deteção de caras (por omissão) |
+| `det_10g.onnx` | SCRFD-10GF | Deteção (alternativa mais precisa, `--detector det_10g.onnx`) |
+| `genderage.onnx` | InsightFace gender-age | Idade e género |
+| `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade |
+| `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Não usados |
+| `expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
+| `expression_best.onnx` | O mesmo modelo exportado para ONNX | Expressão na aplicação (script de exportação por adicionar). Sem ele, a expressão fica desligada. |
 
 Os ficheiros `det_10g.onnx`, `genderage.onnx`, `w600k_r50.onnx`, `2d106det.onnx` e `1k3d68.onnx` vêm do pack **buffalo_l** do [InsightFace](https://github.com/deepinsight/insightface/tree/master/python-package):
 
 ```bash
-mkdir -p src/models
+mkdir -p models
 curl -L -o /tmp/buffalo_l.zip https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip
-unzip -o /tmp/buffalo_l.zip -d src/models
+unzip -o /tmp/buffalo_l.zip -d models
 ```
 
 > **Licença:** os modelos pré-treinados do InsightFace estão disponíveis apenas para **investigação não comercial**. Não redistribuir os pesos.
 
 ## Datasets
 
-Os datasets ficam em `data/` (ignorado pelo git):
+Nenhum dataset é versionado. As localizações estão em `src/config.py`:
 
-- **UTKFace** (`data/UTKFace/`) — avaliação/fine-tuning de idade e género. O nome de cada imagem segue o formato `[idade]_[género]_[etnia]_[data].jpg.chip.jpg`.
-- **WIDER Face** — avaliação do detetor (a adicionar).
-- **AffectNet / BTFER / FERPlus** — avaliação de expressões (a adicionar).
+| Dataset | Pasta | Uso |
+|---|---|---|
+| UTKFace | `data/UTKFace/` | Avaliação de idade e género. Labels no nome: `[idade]_[género]_[etnia]_[data].jpg.chip.jpg` |
+| WIDER Face (val) | `data/WIDER/` (`WIDER_val/`, `wider_face_split/`, `eval_tools/`) | Avaliação do detetor |
+| Fotos da galeria | `data/dados_caras/<pessoa>/` | Avaliação da identidade (voluntários com consentimento) |
+| AffectNet | `AffectNetCustom/` (`train/`, `val/`, `test/`) | Treino e avaliação intra-dataset da expressão |
+| BTFER | `BTFER/` | Avaliação cross-dataset da expressão |
 
 ## Execução
 
-A partir da raiz do repositório (os caminhos dos modelos são relativos à raiz):
+Todos os comandos correm **a partir da raiz do repositório**, com `python -m`:
 
 ```bash
 source .venv/bin/activate
-python src/main.py
+python -m src.main                                  # aplicação (webcam 0)
+python -m src.main --source 0 --source video.mp4    # 's' alterna entre as fontes
+
+python -m src.tools.enrol --all data/dados_caras --images frontal frontal2   # registar a galeria
+python -m src.tools.enrol --list | --remove NOME | --clear
+
+python -m src.evaluation.eval_identity              # resultados em results/identity/
+python -m src.evaluation.eval_age_gender            # resultados em results/age_gender/
+python -m src.evaluation.eval_expression_btfer      # resultados em results/expression/
+python -m src.training.train_expression             # checkpoint em models/, métricas em results/expression/
 ```
 
-- Janela **SCRFD**: stream da webcam com bounding boxes, confiança, keypoints e FPS.
-- Janela **aligned**: o último crop alinhado (112×112), para verificar o alinhamento visualmente.
-- Carregar em **`q`** para sair.
+Na aplicação, carregar em **`h`** para ver as teclas: parar/retomar a câmara, mudar de fonte, ligar/desligar módulos, registar/apagar pessoas e sair (**`q`**).
 
 No macOS, na primeira execução, é preciso dar permissão de acesso à câmara ao terminal/IDE (Definições do Sistema → Privacidade e Segurança → Câmara).
 
 ## Limitações conhecidas
 
-- O caminho do modelo e os parâmetros (threshold de deteção 0.4, resolução 640×480, câmara 0) estão fixos no código; ainda não há seleção de fonte nem ficheiro de configuração.
-- Ainda não é possível usar um ficheiro de vídeo como entrada.
-- A janela `aligned` mostra apenas a última cara detetada quando há várias caras.
-- O FPS mostrado é instantâneo (sem média), por isso oscila de frame para frame.
+- Os comandos têm de ser corridos a partir da raiz do repositório (`python -m src...`).
+- Não há tracking (excluído pelo enunciado): os atributos são calculados em cada frame, por isso as labels podem oscilar.
+- Os nomes ao registar/apagar pessoas escrevem-se no terminal; enquanto isso, a janela fica parada.
+- A utilização da GPU não é medida; o painel mostra só a CPU e a memória do processo.
+- Idade: MAE de cerca de 10 anos no UTKFace, com tendência para a média (sobrestima crianças, subestima idosos).
+- Género: falha mais em crianças, idosos e no grupo Asian do UTKFace.
+- O threshold da identidade foi calibrado com só 4 pessoas e 10 casos de impostor na validação (ver MILESTONES.md).
 
 ## Considerações éticas
 

@@ -1,10 +1,12 @@
 """
 Análise facial em tempo real: deteção, identidade, idade/género e expressão.
 
-Uso (a partir de qualquer pasta):
-    python src/main.py                                # webcam 0
-    python src/main.py --source 0 --source demo.mp4   # a tecla 's' alterna entre as fontes
-    python src/main.py --detector det_10g.onnx        # outro detetor SCRFD
+Uso (a partir da raiz do repositório):
+    python -m src.main                                # webcam 0
+    python -m src.main --source 0 --source demo.mp4   # a tecla 's' alterna entre as fontes
+    python -m src.main --detector det_10g.onnx        # outro detetor SCRFD
+
+Caminhos e limiares em src/config.py.
 
 Carregar em 'h' para ver as teclas.
 """
@@ -17,16 +19,17 @@ import cv2 as cv
 import numpy as np
 from scrfd import Face
 
-from age_gender import AgeGenderEstimator, AgeGenderResult
-from alignment import align_face, keypoints_to_array
-from capture import open_source, parse_source
-from detection import MODELS_DIR, attribute_crop, detect, identity_crop, largest_face, load_detector
-from expression import EXPRESSION_MODEL, ExpressionEstimator, ExpressionResult
-from identity import FaceEmbedder, Gallery, IdentityResult
-from monitoring import Monitor
+from src.config import (AGE_GENDER_MODEL, DETECTION_THRESHOLD, DETECTOR_MODEL, EXPRESSION_MODEL,
+                        GENDER_UNCERTAIN_BELOW, MIN_FACE_SIZE)
+from src.pipeline.age_gender import AgeGenderEstimator, AgeGenderResult
+from src.pipeline.capture import open_source, parse_source
+from src.pipeline.detection import (attribute_crop, detect, expression_crop, identity_crop, largest_face,
+                                    load_detector)
+from src.pipeline.expression import ExpressionEstimator, ExpressionResult
+from src.pipeline.identity import FaceEmbedder, Gallery, IdentityResult
+from src.pipeline.monitoring import Monitor
 
 WINDOW = "Facial Analysis"
-MIN_FACE_SIZE = 40      # px; caras mais pequenas são detetadas mas não analisadas
 ENROL_FRAMES = 5        # imagens captadas no registo pela webcam
 ENROL_INTERVAL_MS = 400
 
@@ -61,7 +64,7 @@ class App:
         self.sources = args.source or ["0"]
         self.source_index = 0
         self.detector = load_detector(args.detector)
-        self.age_gender = AgeGenderEstimator(str(MODELS_DIR / "genderage.onnx"))
+        self.age_gender = AgeGenderEstimator(str(AGE_GENDER_MODEL), GENDER_UNCERTAIN_BELOW)
         self.embedder = FaceEmbedder()
         self.gallery = Gallery.load()
         self.expression = ExpressionEstimator() if EXPRESSION_MODEL.exists() else None
@@ -93,8 +96,7 @@ class App:
                     r.age_gender = self.age_gender.predict(attribute_crop(frame, face))
             if r.analysed and self.modules["expression"]:
                 with self.monitor.stage("expression"):
-                    crop = align_face(frame, keypoints_to_array(face), size=224, margin=0.2)
-                    r.expression = self.expression.predict(crop)
+                    r.expression = self.expression.predict(expression_crop(frame, face))
             results.append(r)
         return results
 
@@ -287,8 +289,9 @@ def main():
     parser = argparse.ArgumentParser(description="Análise facial em tempo real.")
     parser.add_argument("--source", action="append",
                         help="índice da webcam ou caminho de um vídeo (pode repetir-se)")
-    parser.add_argument("--detector", default="scrfd.onnx", help="modelo SCRFD em src/models/")
-    parser.add_argument("--det-threshold", type=float, default=0.4, help="confiança mínima da deteção")
+    parser.add_argument("--detector", default=DETECTOR_MODEL, help="modelo SCRFD em models/")
+    parser.add_argument("--det-threshold", type=float, default=DETECTION_THRESHOLD,
+                        help="confiança mínima da deteção")
     App(parser.parse_args()).run()
 
 

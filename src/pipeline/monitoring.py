@@ -17,9 +17,9 @@ from datetime import datetime
 
 import psutil
 
-from detection import ROOT_DIR
+from src.config import RESULTS_DIR, ROOT_DIR
 
-RESULTS_DIR = ROOT_DIR / "results" / "system"
+SYSTEM_RESULTS_DIR = RESULTS_DIR / "system"
 
 
 class Monitor:
@@ -76,8 +76,8 @@ class Monitor:
     def save(self, info: dict | None = None) -> str | None:
         if self._frames < 2:
             return None
-        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        path = RESULTS_DIR / f"run_{datetime.now():%Y%m%d_%H%M%S}.csv"
+        SYSTEM_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        path = SYSTEM_RESULTS_DIR / f"run_{datetime.now():%Y%m%d_%H%M%S}.csv"
         cpu = [c for c, _ in self._resource_samples[1:]] or [0.0]
         rows = [("frames", self._frames),
                 ("fps_mean", (self._frames - 1) / self._frame_time),

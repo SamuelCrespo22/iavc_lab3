@@ -14,15 +14,25 @@ Entrega: **29 de novembro de 2026**.
 
 **Bloqueios e problemas em aberto**
 - **`expression_best.onnx`:** só existe no computador da Luciana. Sem ele, o `main.py` arranca com a expressão desligada. Também não estão no repositório o script de exportação para ONNX nem os resultados do AffectNet e do BTFER.
+- **Reorganização do `src/` (Luciana):** antes de mexer nos ficheiros dela, tem de:
+  1. fazer pull;
+  2. mover os pesos para `models/` na raiz;
+  3. correr os scripts com `python -m src.training.train_expression` e `python -m src.evaluation.eval_expression_btfer`, a partir da raiz.
+
+  As métricas dela passam a ir para `results/expression/`.
 - **`main.py` não foi testado ao vivo.** Foi testado sem janela, com um vídeo feito de imagens do WIDER. Falta confirmar com a webcam: pausa, registo (`e`), apagar (`d`, `x`) e fechar a janela.
 - **Threshold da identidade (0.193) encostado aos impostores:** o critério FAR = 0 na validação põe o threshold no score mais alto de um impostor de validação. Só houve 10 casos de impostor. Na validação e no teste, os genuínos ficaram entre 0.63 e 0.93 e os impostores entre 0.01 e 0.19, por isso qualquer valor entre 0.19 e 0.63 dava os mesmos resultados. Ao vivo, um desconhecido pode passar de 0.19. **Rever nos testes de sistema (M4)** e discutir no relatório.
 
 **Resolvido hoje:**
-- WIDER val descarregado em `data/WIDER/`, com as anotações e o ground truth do `eval_tools`
+- WIDER val descarregado em `data/WIDER/`
 - recorte do `genderage` corrigido
-- caminhos dos modelos independentes da pasta de onde se corre o programa
 - janela duplicada eliminada
 - `CAP_AVFOUNDATION` usado só em macOS
+- `src/` reorganizado:
+  - pastas `pipeline/`, `tools/`, `evaluation/` e `training/`
+  - caminhos e limiares em `src/config.py`
+  - pesos em `models/`
+  - comandos com `python -m` a partir da raiz (ver README)
 
 ---
 
@@ -52,7 +62,7 @@ Entrega: **29 de novembro de 2026**.
 **Expressão**
 - [x] Fazer fine-tuning de uma CNN compacta no AffectNet (`train_expression.py`, MobileNetV3-Small, 8 classes)
 - [ ] Avaliação intra-dataset na partição de teste do AffectNet. O `train_expression.py` já a faz; faltam os resultados no repositório.
-- [ ] Avaliação cross-dataset no BTFER sem re-treino, só com as 7 classes comuns. O `btfer.py` já a faz; faltam os resultados no repositório.
+- [ ] Avaliação cross-dataset no BTFER sem re-treino, só com as 7 classes comuns. O `eval_expression_btfer.py` (antigo `btfer.py`) já a faz; faltam os resultados no repositório.
 - [ ] Métricas: accuracy, balanced accuracy, precisão/recall/F1 macro, matriz de confusão. Os scripts já as calculam e guardam em JSON e CSV.
 - [ ] Exportar para ONNX. Falta o script de exportação e o ficheiro `.onnx`. A inferência já está em `expression.py` (`ExpressionEstimator`, incerta abaixo de 0.5) e o overlay já está pronto.
 

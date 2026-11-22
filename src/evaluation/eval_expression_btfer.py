@@ -1,6 +1,5 @@
 
 import json
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -17,10 +16,11 @@ from sklearn.metrics import (
     classification_report
 )
 
-ROOT = Path(__file__).resolve().parent.parent
-DATASET_DIR = ROOT / "BTFER"
-CHECKPOINT_PATH = ROOT / "src/models/expression_best.pth"
-OUTPUT_DIR = ROOT / "src/models"
+from src.config import BTFER_DIR, EXPRESSION_CHECKPOINT, RESULTS_DIR
+
+DATASET_DIR = BTFER_DIR
+CHECKPOINT_PATH = EXPRESSION_CHECKPOINT
+OUTPUT_DIR = RESULTS_DIR / "expression"
 
 IMAGE_SIZE = 224
 BATCH_SIZE = 32

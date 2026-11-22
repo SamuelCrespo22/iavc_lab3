@@ -13,7 +13,7 @@ Saídas (results/age_gender/):
   gender_confusion.csv  matriz de confusão do género
   by_group.csv          resultados por faixa etária, etnia e género
 
-Uso: python src/eval_age_gender.py [--limit N]
+Uso: python -m src.evaluation.eval_age_gender [--limit N]
 """
 import argparse
 import csv
@@ -23,11 +23,11 @@ import cv2 as cv
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
-from age_gender import AgeGenderEstimator
-from detection import MODELS_DIR, ROOT_DIR, attribute_crop, largest_face, load_detector
+from src.config import AGE_GENDER_MODEL, GENDER_UNCERTAIN_BELOW, RESULTS_DIR, ROOT_DIR, UTKFACE_DIR
+from src.pipeline.age_gender import AgeGenderEstimator
+from src.pipeline.detection import attribute_crop, largest_face, load_detector
 
-UTK_DIR = ROOT_DIR / "data" / "UTKFace"
-RESULTS_DIR = ROOT_DIR / "results" / "age_gender"
+OUT_DIR = RESULTS_DIR / "age_gender"
 GENDERS = ["Male", "Female"]
 RACES = ["White", "Black", "Asian", "Indian", "Others"]
 PADDING = 0.5  # borda à volta da imagem, em fração do lado (com 0.25 o SCRFD falha ~30% das caras)
@@ -106,12 +106,12 @@ def main():
     parser.add_argument("--limit", type=int, help="avaliar só N imagens aleatórias (teste rápido)")
     args = parser.parse_args()
 
-    paths = sorted(UTK_DIR.glob("*.jpg"))
+    paths = sorted(UTKFACE_DIR.glob("*.jpg"))
     if args.limit:
         paths = [paths[i] for i in np.random.default_rng(SEED).choice(len(paths), args.limit, replace=False)]
 
     detector = load_detector()
-    estimator = AgeGenderEstimator(str(MODELS_DIR / "genderage.onnx"))
+    estimator = AgeGenderEstimator(str(AGE_GENDER_MODEL), GENDER_UNCERTAIN_BELOW)
     # Guardar o limiar de incerteza e desligá-lo no predict(), para manter a previsão original.
     uncertain_below, estimator.confidence_threshold = estimator.confidence_threshold, 0.0
 
@@ -137,15 +137,15 @@ def main():
         },
     }
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    (RESULTS_DIR / "metrics.json").write_text(json.dumps(metrics, indent=4))
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    (OUT_DIR / "metrics.json").write_text(json.dumps(metrics, indent=4))
     for name, table in (("predictions.csv", rows), ("by_group.csv", group_rows(rows))):
-        with (RESULTS_DIR / name).open("w", newline="") as f:
+        with (OUT_DIR / name).open("w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=list(table[0]))
             writer.writeheader()
             writer.writerows(table)
     matrix = confusion_matrix([r["gender"] for r in rows], [r["pred_gender"] for r in rows], labels=GENDERS)
-    np.savetxt(RESULTS_DIR / "gender_confusion.csv", matrix, delimiter=",", fmt="%d",
+    np.savetxt(OUT_DIR / "gender_confusion.csv", matrix, delimiter=",", fmt="%d",
                header="linhas = verdadeiro, colunas = previsto: " + ",".join(GENDERS))
 
     a, g = metrics["age"], metrics["gender"]
@@ -154,7 +154,7 @@ def main():
           f"faixa etária certa {a['age_group_accuracy']:.2%}")
     print(f"Género: accuracy {g['all']['accuracy']:.2%} | F1 macro {g['all']['macro avg']['f1-score']:.3f} | "
           f"cobertura {g['coverage']:.1%} | accuracy nas confiantes {g['confident_only']['accuracy']:.2%}")
-    print(f"Resultados em {RESULTS_DIR.relative_to(ROOT_DIR)}/")
+    print(f"Resultados em {OUT_DIR.relative_to(ROOT_DIR)}/")
 
 
 if __name__ == "__main__":

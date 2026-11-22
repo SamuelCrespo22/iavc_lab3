@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -16,11 +15,14 @@ from sklearn.metrics import (
     classification_report
 )
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "AffectNetCustom"
-MODEL_DIR = Path(__file__).resolve().parent / "models"
+from src.config import AFFECTNET_DIR, MODELS_DIR, RESULTS_DIR
+
+DATA_DIR = AFFECTNET_DIR
+MODEL_DIR = MODELS_DIR                      # checkpoint (.pth)
+OUTPUT_DIR = RESULTS_DIR / "expression"     # métricas de teste
 
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 BATCH_SIZE = 32
 EPOCHS = 10
@@ -288,13 +290,13 @@ print(classification_report(
 cm = confusion_matrix(y_true, y_pred)
 
 np.savetxt(
-    MODEL_DIR / "expression_confusion_matrix.csv",
+    OUTPUT_DIR / "expression_confusion_matrix.csv",
     cm,
     delimiter=",",
     fmt="%d"
 )
 
-with open(MODEL_DIR / "expression_test_metrics.json", "w") as f:
+with open(OUTPUT_DIR / "expression_test_metrics.json", "w") as f:
     json.dump(test_metrics, f, indent=4)
 
 print("\nTraining and evaluation completed.")

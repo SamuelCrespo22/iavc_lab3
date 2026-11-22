@@ -8,9 +8,8 @@ import cv2 as cv
 import numpy as np
 import onnxruntime as ort
 
-from detection import MODELS_DIR, onnx_providers
+from src.config import EXPRESSION_MODEL, EXPRESSION_UNCERTAIN_BELOW, onnx_providers
 
-EXPRESSION_MODEL = MODELS_DIR / "expression_best.onnx"
 CLASSES = ["Neutral", "Happy", "Sad", "Surprise", "Fear", "Disgust", "Anger", "Contempt"]
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -25,7 +24,7 @@ class ExpressionResult:
 
 
 class ExpressionEstimator:
-    def __init__(self, model_path=EXPRESSION_MODEL, confidence_threshold: float = 0.5):
+    def __init__(self, model_path=EXPRESSION_MODEL, confidence_threshold: float = EXPRESSION_UNCERTAIN_BELOW):
         self.session = ort.InferenceSession(str(model_path), providers=onnx_providers())
         self.input_name = self.session.get_inputs()[0].name
         self.confidence_threshold = confidence_threshold

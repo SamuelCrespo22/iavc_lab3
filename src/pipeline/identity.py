@@ -16,15 +16,13 @@ import cv2 as cv
 import numpy as np
 import onnxruntime as ort
 
-from detection import MODELS_DIR, ROOT_DIR, identity_crop, largest_face, onnx_providers
+from src.config import (EMBEDDING_MODEL, GALLERY_DIR, MAX_IDENTITIES, PROVISIONAL_IDENTITY_THRESHOLD,
+                        onnx_providers)
+from src.pipeline.detection import identity_crop, largest_face
 
-GALLERY_DIR = ROOT_DIR / "gallery"
 GALLERY_PATH = GALLERY_DIR / "gallery.npz"
 THRESHOLD_PATH = GALLERY_DIR / "threshold.json"
-
 UNKNOWN = "Unknown"
-MAX_IDENTITIES = 19          # o enunciado pede "fewer than 20"
-PROVISIONAL_THRESHOLD = 0.35  # só usado enquanto eval_identity.py não tiver calibrado o threshold
 
 
 def l2_normalize(x: np.ndarray) -> np.ndarray:
@@ -34,7 +32,7 @@ def l2_normalize(x: np.ndarray) -> np.ndarray:
 class FaceEmbedder:
     """ArcFace ResNet-50 (InsightFace w600k_r50)."""
 
-    def __init__(self, model_path: Path = MODELS_DIR / "w600k_r50.onnx"):
+    def __init__(self, model_path: Path = EMBEDDING_MODEL):
         self.session = ort.InferenceSession(str(model_path), providers=onnx_providers())
         self.input_name = self.session.get_inputs()[0].name
 
@@ -67,7 +65,7 @@ class IdentityResult:
 def load_threshold() -> float:
     if THRESHOLD_PATH.exists():
         return float(json.loads(THRESHOLD_PATH.read_text())["threshold"])
-    return PROVISIONAL_THRESHOLD
+    return PROVISIONAL_IDENTITY_THRESHOLD
 
 
 def save_threshold(threshold: float, details: dict) -> None:

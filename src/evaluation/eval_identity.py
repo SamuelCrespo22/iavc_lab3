@@ -40,11 +40,11 @@ from pathlib import Path
 
 import numpy as np
 
-from detection import ROOT_DIR, load_detector
-from identity import Gallery, FaceEmbedder, embed_image, save_threshold
+from src.config import GALLERY_PHOTOS_DIR, RESULTS_DIR, ROOT_DIR
+from src.pipeline.detection import load_detector
+from src.pipeline.identity import Gallery, FaceEmbedder, embed_image, save_threshold
 
-DATA_DIR = ROOT_DIR / "data" / "dados_caras"
-RESULTS_DIR = ROOT_DIR / "results" / "identity"
+OUT_DIR = RESULTS_DIR / "identity"
 ENROL_STEMS = ("frontal", "frontal2")
 SEED = 0
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
@@ -80,7 +80,7 @@ def condition_of(stem: str) -> str:
 def load_photos(detector, embedder: FaceEmbedder) -> list[Photo]:
     rng = np.random.default_rng(SEED)
     photos = []
-    for person_dir in sorted(p for p in DATA_DIR.iterdir() if p.is_dir()):
+    for person_dir in sorted(p for p in GALLERY_PHOTOS_DIR.iterdir() if p.is_dir()):
         paths = sorted(p for p in person_dir.iterdir() if p.suffix.lower() in IMAGE_EXTENSIONS)
         enrol = [p for p in paths if p.stem in ENROL_STEMS]
         rest = [p for p in paths if p.stem not in ENROL_STEMS]
@@ -172,7 +172,7 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def main():
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     detector, embedder = load_detector(), FaceEmbedder()
     photos = load_photos(detector, embedder)
 
@@ -183,19 +183,19 @@ def main():
     _, _, one_image_summary = run_protocol(photos, ENROL_STEMS[:1])
 
     # Tabelas
-    write_csv(RESULTS_DIR / "scores.csv", [asdict(r) for r in rows])
+    write_csv(OUT_DIR / "scores.csv", [asdict(r) for r in rows])
 
     sweep = []
     for t in np.round(np.arange(0.0, 1.0001, 0.01), 2):
         for split in ("val", "test"):
             sweep.append({"threshold": float(t), "split": split, **rates(rows, split, t)})
-    write_csv(RESULTS_DIR / "threshold_sweep.csv", sweep)
+    write_csv(OUT_DIR / "threshold_sweep.csv", sweep)
 
     by_condition = []
     for condition in sorted({r.condition for r in rows if r.split == "test"}):
         cond_rows = [r for r in rows if r.split == "test" and r.condition == condition]
         by_condition.append({"condition": condition, **rates(cond_rows, "test", threshold)})
-    write_csv(RESULTS_DIR / "by_condition.csv", by_condition)
+    write_csv(OUT_DIR / "by_condition.csv", by_condition)
 
     metrics = {
         "protocol": {
@@ -208,12 +208,12 @@ def main():
         "enrol_2_images": main_summary,
         "enrol_1_image": one_image_summary,
     }
-    (RESULTS_DIR / "metrics.json").write_text(json.dumps(metrics, indent=4, ensure_ascii=False))
+    (OUT_DIR / "metrics.json").write_text(json.dumps(metrics, indent=4, ensure_ascii=False))
 
     save_threshold(threshold, {
         "criterion": "FAR = 0 na validação",
         "enrol_images": list(ENROL_STEMS),
-        "source": "src/eval_identity.py",
+        "source": "src/evaluation/eval_identity.py",
     })
 
     # Resumo no terminal
@@ -225,7 +225,7 @@ def main():
             print(f"  {split:4s} rank-1 {r['rank1']:.2f} | DIR {r['dir']:.2f} | FRR {r['frr']:.2f} | "
                   f"misid {r['misid']:.2f} | FAR {r['far']:.2f} "
                   f"(n genuínos={r['n_genuine']}, n impostores={r['n_impostor']})")
-    print(f"\nResultados em {RESULTS_DIR.relative_to(ROOT_DIR)}/ | threshold guardado em gallery/threshold.json")
+    print(f"\nResultados em {OUT_DIR.relative_to(ROOT_DIR)}/ | threshold guardado em gallery/threshold.json")
 
 
 if __name__ == "__main__":
