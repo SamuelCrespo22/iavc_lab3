@@ -38,7 +38,7 @@ while True:
     if not ret:
         print("Can't receive frame (stream end?). Exiting ...")
         break
-    
+
     image = Image.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
     faces = detector.detect(image, threshold=threshold)
 
