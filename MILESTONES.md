@@ -2,35 +2,37 @@
 
 Entrega: **29 de novembro de 2026**.
 
-| # | Milestone | Datas | Responsável | Estado (22 nov, noite) |
+| # | Milestone | Datas | Responsável | Estado (24 nov) |
 |---|-----------|-------|-------------|-----------------|
 | M1 | Pipeline base + avaliação do detetor | 12–16 nov | Samuel | 🟢 Código, avaliação no WIDER (com a comparação extra) e licenças verificados; falta a secção do relatório |
-| M2 | Idade/género e expressão | 12–21 nov | Luciana | 🟡 Idade/género avaliado; expressão sem `.onnx` nem resultados no repositório |
+| M2 | Idade/género e expressão | 12–21 nov | Luciana | 🔴 Idade/género avaliado; expressão em atraso: continua sem `.onnx` nem resultados no repositório |
 | M3 | Galeria de identidades | 17–22 nov | Samuel | 🟢 Implementado e avaliado; falta o consentimento escrito |
 | M4 | Interface, desempenho e testes de sistema | 22–25 nov | Ambos | 🟡 Interface e monitorização feitas; falta testar ao vivo, otimizar e fazer os testes 6.2 |
 | M5 | Relatório, vídeo e entrega | 25–29 nov | Ambos | ⚪ Por começar |
 
 ## Plano até à entrega
 
-| Dia | O quê |
-|---|---|
-| **23 nov** | Receber da Luciana tudo o que falta da expressão (`.onnx`, `.pth`, script de exportação, métricas do AffectNet e do BTFER) e integrar. Testar a aplicação com a webcam. Script de gráficos, por partes. Revisão completa do código. |
-| **24 nov** | Escrever o relatório que der (deteção, idade/género, identidade, arquitetura) |
-| **26 nov** | Testes ao vivo na aula: testes 6.2, threshold da identidade com pessoas não registadas, gravar o vídeo de demonstração |
-| **28 nov** | Revisão final em conjunto |
-| **29 nov** | Entrega |
+| Dia | O quê | Estado |
+|---|---|---|
+| **24 nov** | Escrever o relatório que der (deteção, idade/género, identidade, arquitetura) | Hoje |
+| **25 nov** | Passou de 23 nov. Receber da Luciana tudo o que falta da expressão (`.onnx`, `.pth`, script de exportação, métricas do AffectNet e do BTFER) e integrar. Testar a aplicação com a webcam. Script de gráficos, por partes. Revisão completa do código. | |
+| **26 nov** | Testes ao vivo na aula: testes 6.2, threshold da identidade com pessoas não registadas, gravar o vídeo de demonstração | |
+| **28 nov** | Revisão final em conjunto | |
+| **29 nov** | Entrega | |
 
-## Situação a 22 nov
+## Situação a 24 nov
+
+Não há alterações no repositório desde 22 nov.
 
 **Bloqueios e problemas em aberto**
-- **`expression_best.onnx`:** só existe no computador da Luciana. Sem ele, o `main.py` arranca com a expressão desligada. Também não estão no repositório o script de exportação para ONNX nem os resultados do AffectNet e do BTFER.
+- **`expression_best.onnx`:** continua só no computador da Luciana; devia ter chegado a 23 nov e passou para 25 nov. Sem ele, o `main.py` arranca com a expressão desligada. Também não estão no repositório o script de exportação para ONNX nem os resultados do AffectNet e do BTFER.
 - **Reorganização do `src/` (Luciana):** antes de mexer nos ficheiros dela, tem de:
   1. fazer pull;
   2. mover os pesos para `models/` na raiz;
   3. correr os scripts com `python -m src.training.train_expression` e `python -m src.evaluation.eval_expression_btfer`, a partir da raiz.
 
   As métricas dela passam a ir para `results/expression/`.
-- **`main.py` não foi testado ao vivo.** Foi testado sem janela, com um vídeo feito de imagens do WIDER. Falta confirmar com a webcam: pausa, registo (`e`), apagar (`d`, `x`) e fechar a janela.
+- **`main.py` não foi testado ao vivo.** Foi testado sem janela, com um vídeo feito de imagens do WIDER; `results/system/` continua vazio. Falta confirmar com a webcam: pausa, registo (`e`), apagar (`d`, `x`) e fechar a janela.
 - **Threshold da identidade (0.193) encostado aos impostores:** o critério FAR = 0 na validação põe o threshold no score mais alto de um impostor de validação. Só houve 10 casos de impostor. Na validação e no teste, os genuínos ficaram entre 0.63 e 0.93 e os impostores entre 0.01 e 0.19, por isso qualquer valor entre 0.19 e 0.63 dava os mesmos resultados. Ao vivo, um desconhecido pode passar de 0.19. **Rever nos testes de sistema (M4)** e discutir no relatório.
 
 ---

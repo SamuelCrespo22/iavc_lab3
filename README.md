@@ -14,9 +14,9 @@ O enunciado completo está em [assignment.pdf](assignment.pdf).
 
 ## Estado atual
 
-O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo:
+O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo (24 nov):
 - **Feito:** deteção (avaliada no WIDER Face), alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), interface e monitorização.
-- **Falta:** modelo ONNX e resultados da expressão, testes de sistema ao vivo, relatório.
+- **Falta:** expressão (modelo ONNX, script de exportação e resultados do AffectNet e do BTFER), teste com a webcam e testes de sistema, consentimento escrito dos voluntários, relatório e vídeo de demonstração.
 
 ## Estrutura do repositório
 
