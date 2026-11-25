@@ -17,6 +17,7 @@ from sklearn.metrics import (
 )
 
 from src.config import BTFER_DIR, EXPRESSION_CHECKPOINT, RESULTS_DIR
+from src.pipeline.expression import CLASSES
 
 DATASET_DIR = BTFER_DIR
 CHECKPOINT_PATH = EXPRESSION_CHECKPOINT
@@ -31,25 +32,16 @@ DEVICE = torch.device(
     else "cpu"
 )
 
-AFFECTNET_CLASSES = [
-    "Neutral",
-    "Happy",
-    "Sad",
-    "Surprise",
-    "Fear",
-    "Disgust",
-    "Anger"
-]
+# As 7 classes comuns ao BTFER (sem Contempt), na ordem do modelo, e o índice de cada uma na saída.
+COMMON_CLASSES = [c for c in CLASSES if c != "Contempt"]
+COMMON_OUTPUTS = [CLASSES.index(c) for c in COMMON_CLASSES]
 
-BTFER_TO_AFFECTNET = {
-    "Neutral": 0,
-    "Happy": 1,
-    "Sad": 2,
-    "Surprise": 3,
-    "Fear": 4,
-    "Disgust": 5,
-    "Angry": 6
-}
+BTFER_NAMES = {"Angry": "Anger"}  # pasta do BTFER -> nome no modelo (as outras têm o mesmo nome)
+
+
+def btfer_target(folder: str) -> int:
+    """Índice em COMMON_CLASSES da pasta do BTFER."""
+    return COMMON_CLASSES.index(BTFER_NAMES.get(folder, folder))
 
 
 def main():
@@ -73,7 +65,7 @@ def main():
     print("Total images:", len(dataset))
 
     mapped_samples = [
-    (path, BTFER_TO_AFFECTNET[dataset.classes[label]])
+    (path, btfer_target(dataset.classes[label]))
     for path, label in dataset.samples
 ]
 
@@ -98,7 +90,7 @@ def main():
 
     model.classifier[3] = nn.Linear(
         model.classifier[3].in_features,
-        8
+        len(CLASSES)
     )
 
     model.load_state_dict(checkpoint["model_state_dict"])
@@ -116,7 +108,7 @@ def main():
             images = images.to(DEVICE)
 
             outputs = model(images)
-            outputs = outputs[:, :7]
+            outputs = outputs[:, COMMON_OUTPUTS]  # só as 7 classes comuns
             predictions = outputs.argmax(dim=1)
 
             all_predictions.extend(predictions.cpu().numpy())
@@ -127,7 +119,7 @@ def main():
 
     print("\nPrediction distribution:")
 
-    for i, name in enumerate(AFFECTNET_CLASSES + ["Contempt"]):
+    for i, name in enumerate(COMMON_CLASSES):
         print(f"{name}: {np.sum(y_pred == i)}")
 
     metrics = {
@@ -155,7 +147,7 @@ def main():
         y_true,
         y_pred,
         labels=list(range(7)),
-        target_names=AFFECTNET_CLASSES,
+        target_names=COMMON_CLASSES,
         output_dict=True,
         zero_division=0
     )
@@ -180,7 +172,7 @@ def main():
         y_true,
         y_pred,
         labels=list(range(7)),
-        target_names=AFFECTNET_CLASSES,
+        target_names=COMMON_CLASSES,
         zero_division=0
     ))
 
@@ -201,7 +193,7 @@ def main():
         matrix,
         delimiter=",",
         fmt="%d",
-        header=",".join(AFFECTNET_CLASSES),
+        header=",".join(COMMON_CLASSES),
         comments=""
     )
 

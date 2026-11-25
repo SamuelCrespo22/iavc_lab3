@@ -10,7 +10,9 @@ import onnxruntime as ort
 
 from src.config import EXPRESSION_MODEL, EXPRESSION_UNCERTAIN_BELOW, onnx_providers
 
-CLASSES = ["Neutral", "Happy", "Sad", "Surprise", "Fear", "Disgust", "Anger", "Contempt"]
+# Índice de saída do modelo = pasta 0–7 do AffectNetCustom usado no treino. Não é a ordem oficial do
+# AffectNet (0 = Neutral): foi confirmada pela matriz de confusão do BTFER e pelas fotos da galeria.
+CLASSES = ["Anger", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral", "Contempt"]
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 

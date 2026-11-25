@@ -16,6 +16,7 @@ from sklearn.metrics import (
 )
 
 from src.config import AFFECTNET_DIR, MODELS_DIR, RESULTS_DIR
+from src.pipeline.expression import CLASSES
 
 DATA_DIR = AFFECTNET_DIR
 MODEL_DIR = MODELS_DIR                      # checkpoint (.pth)
@@ -80,7 +81,8 @@ test_dataset = datasets.ImageFolder(
     transform=eval_transform
 )
 
-class_names = train_dataset.classes
+class_names = train_dataset.classes                    # pastas '0'…'7'
+label_names = [CLASSES[int(c)] for c in class_names]   # nome de cada pasta (ver expression.py)
 num_classes = len(class_names)
 
 assert val_dataset.class_to_idx == train_dataset.class_to_idx
@@ -283,7 +285,7 @@ print("\nClassification report:")
 print(classification_report(
     y_true,
     y_pred,
-    target_names=class_names,
+    target_names=label_names,
     zero_division=0
 ))
 
@@ -293,7 +295,9 @@ np.savetxt(
     OUTPUT_DIR / "expression_confusion_matrix.csv",
     cm,
     delimiter=",",
-    fmt="%d"
+    fmt="%d",
+    header=",".join(label_names),
+    comments=""
 )
 
 with open(OUTPUT_DIR / "expression_test_metrics.json", "w") as f:
