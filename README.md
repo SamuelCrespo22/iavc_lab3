@@ -14,9 +14,9 @@ O enunciado completo está em [assignment.pdf](assignment.pdf).
 
 ## Estado atual
 
-O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo (24 nov):
-- **Feito:** deteção (avaliada no WIDER Face), alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), interface e monitorização.
-- **Falta:** expressão (modelo ONNX, script de exportação e resultados do AffectNet e do BTFER), teste com a webcam e testes de sistema, consentimento escrito dos voluntários, relatório e vídeo de demonstração.
+O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo (25 nov):
+- **Feito:** deteção (avaliada no WIDER Face), alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), expressão (avaliada no AffectNet e no BTFER, exportada para ONNX), interface e monitorização.
+- **Falta:** testar a expressão e as teclas ao vivo, testes de sistema, consentimento escrito dos voluntários, relatório e vídeo de demonstração.
 
 ## Estrutura do repositório
 
@@ -33,7 +33,9 @@ O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resu
 │   │   ├── age_gender.py        #   idade e género (InsightFace genderage)
 │   │   ├── expression.py        #   expressão facial (MobileNetV3, AffectNet)
 │   │   └── monitoring.py        #   FPS, latência, CPU e memória
-│   ├── tools/enrol.py           # Gerir a galeria a partir de fotos
+│   ├── tools/
+│   │   ├── enrol.py             #   gerir a galeria a partir de fotos
+│   │   └── export_expression_onnx.py  #   exportar a expressão para ONNX
 │   ├── evaluation/              # Avaliação de cada componente
 │   │   ├── eval_detection_wider.py
 │   │   ├── eval_identity.py
@@ -80,7 +82,9 @@ Os pesos **não estão incluídos no repositório** (por tamanho e por termos de
 | `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade |
 | `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Não usados |
 | `expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
-| `expression_best.onnx` | O mesmo modelo exportado para ONNX | Expressão na aplicação (script de exportação por adicionar). Sem ele, a expressão fica desligada. |
+| `expression_best.onnx` + `expression_best.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois) | Expressão na aplicação. Gerados por `src/tools/export_expression_onnx.py`. Sem eles, a expressão fica desligada. |
+
+Os índices de saída do modelo de expressão seguem a ordem das pastas `0`–`7` do AffectNet usado no treino, que não é a ordem oficial do AffectNet. A ordem está em `CLASSES`, em `src/pipeline/expression.py`.
 
 O `scrfd.onnx` vem da pasta `models/` do repositório [cospectrum/scrfd](https://github.com/cospectrum/scrfd/tree/main/models), que é o mesmo da biblioteca `scrfd`.
 
@@ -123,6 +127,7 @@ python -m src.evaluation.eval_identity              # resultados em results/iden
 python -m src.evaluation.eval_age_gender            # resultados em results/age_gender/
 python -m src.evaluation.eval_expression_btfer      # resultados em results/expression/
 python -m src.training.train_expression             # checkpoint em models/, métricas em results/expression/
+python -m src.tools.export_expression_onnx          # .pth -> .onnx (+ .onnx.data), com verificação
 ```
 
 Na aplicação, carregar em **`h`** para ver as teclas: parar/retomar a câmara, mudar de fonte, ligar/desligar módulos, registar/apagar pessoas e sair (**`q`**).
@@ -136,6 +141,7 @@ No macOS, na primeira execução, é preciso dar permissão de acesso à câmara
 - Os nomes ao registar/apagar pessoas escrevem-se no terminal; enquanto isso, a janela fica parada.
 - A utilização da GPU não é medida; o painel mostra só a CPU e a memória do processo.
 - Idade: MAE de cerca de 10 anos no UTKFace, com tendência para a média (sobrestima crianças, subestima idosos).
+- Expressão: accuracy de 54% no teste do AffectNet (8 classes) e de 64% no BTFER (7 classes). Fear é a classe que mais falha no BTFER, com recall 0.39.
 - Género: falha mais em crianças, idosos e no grupo Asian do UTKFace.
 - O threshold da identidade foi calibrado com só 4 pessoas e 10 casos de impostor na validação (ver MILESTONES.md).
 

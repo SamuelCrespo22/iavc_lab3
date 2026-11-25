@@ -2,37 +2,36 @@
 
 Entrega: **29 de novembro de 2026**.
 
-| # | Milestone | Datas | Responsável | Estado (24 nov) |
+| # | Milestone | Datas | Responsável | Estado (25 nov) |
 |---|-----------|-------|-------------|-----------------|
 | M1 | Pipeline base + avaliação do detetor | 12–16 nov | Samuel | 🟢 Código, avaliação no WIDER (com a comparação extra) e licenças verificados; falta a secção do relatório |
-| M2 | Idade/género e expressão | 12–21 nov | Luciana | 🔴 Idade/género avaliado; expressão em atraso: continua sem `.onnx` nem resultados no repositório |
+| M2 | Idade/género e expressão | 12–21 nov | Luciana | 🟢 Ambos avaliados e integrados; falta ver a expressão ao vivo |
 | M3 | Galeria de identidades | 17–22 nov | Samuel | 🟢 Implementado e avaliado; falta o consentimento escrito |
-| M4 | Interface, desempenho e testes de sistema | 22–25 nov | Ambos | 🟡 Interface e monitorização feitas; falta testar ao vivo, otimizar e fazer os testes 6.2 |
+| M4 | Interface, desempenho e testes de sistema | 22–25 nov | Ambos | 🟡 Interface e monitorização feitas, app testada com a webcam; falta testar `d`/`x` e a expressão ao vivo, otimizar e fazer os testes 6.2 |
 | M5 | Relatório, vídeo e entrega | 25–29 nov | Ambos | ⚪ Por começar |
 
 ## Plano até à entrega
 
 | Dia | O quê | Estado |
 |---|---|---|
-| **24 nov** | Escrever o relatório que der (deteção, idade/género, identidade, arquitetura) | Hoje |
-| **25 nov** | Passou de 23 nov. Receber da Luciana tudo o que falta da expressão (`.onnx`, `.pth`, script de exportação, métricas do AffectNet e do BTFER) e integrar. Testar a aplicação com a webcam. Script de gráficos, por partes. Revisão completa do código. | |
+| **24 nov** | Escrever o relatório que der (deteção, idade/género, identidade, arquitetura) | ⚠️ Não feito: relatório por começar |
+| **25 nov** | Passou de 23 nov. Receber da Luciana tudo o que falta da expressão (`.onnx`, `.pth`, script de exportação, métricas do AffectNet e do BTFER) e integrar. Testar a aplicação com a webcam. Script de gráficos, por partes. Revisão completa do código. | Hoje. Expressão recebida, corrigida e integrada; app corrida com a webcam. Falta: gráficos e revisão do código |
 | **26 nov** | Testes ao vivo na aula: testes 6.2, threshold da identidade com pessoas não registadas, gravar o vídeo de demonstração | |
 | **28 nov** | Revisão final em conjunto | |
 | **29 nov** | Entrega | |
 
-## Situação a 24 nov
-
-Não há alterações no repositório desde 22 nov.
+## Situação a 25 nov
 
 **Bloqueios e problemas em aberto**
-- **`expression_best.onnx`:** continua só no computador da Luciana; devia ter chegado a 23 nov e passou para 25 nov. Sem ele, o `main.py` arranca com a expressão desligada. Também não estão no repositório o script de exportação para ONNX nem os resultados do AffectNet e do BTFER.
-- **Reorganização do `src/` (Luciana):** antes de mexer nos ficheiros dela, tem de:
-  1. fazer pull;
-  2. mover os pesos para `models/` na raiz;
-  3. correr os scripts com `python -m src.training.train_expression` e `python -m src.evaluation.eval_expression_btfer`, a partir da raiz.
-
-  As métricas dela passam a ir para `results/expression/`.
-- **`main.py` não foi testado ao vivo.** Foi testado sem janela, com um vídeo feito de imagens do WIDER; `results/system/` continua vazio. Falta confirmar com a webcam: pausa, registo (`e`), apagar (`d`, `x`) e fechar a janela.
+- **Ordem das classes da expressão (resolvido; a Luciana tem de saber e o relatório tem de o explicar):** as pastas `0`–`7` do AffectNet usado no treino seguem a ordem `Anger, Disgust, Fear, Happy, Sad, Surprise, Neutral, Contempt`, não a ordem oficial do AffectNet (0 = Neutral), que era a que o código assumia.
+  - **Efeitos:** a app mostrava a classe errada (uma cara neutra aparecia como "Anger") e o BTFER dava accuracy 7.3%, abaixo do acaso.
+  - **Como se confirmou:**
+    - na matriz do BTFER, cada classe ia quase toda para uma única coluna;
+    - nas fotos da galeria, a `surpresa.jpeg` saía como "Disgust".
+  - **Correção:** `CLASSES` em `expression.py` passa a ser a única fonte da ordem. O BTFER foi recalculado trocando as linhas da matriz, porque as previsões não mudam.
+  - **Falta confirmar com a Luciana:** de onde vem esta numeração das pastas.
+- **Antes de mexer nos ficheiros da expressão, a Luciana tem de fazer pull** e correr os scripts a partir da raiz, com `python -m src.…`. Os pesos ficam em `models/` e as métricas em `results/expression/`.
+- **Teclas por testar ao vivo:** falta apagar uma pessoa (`d`) e apagar a galeria (`x`).
 - **Threshold da identidade (0.193) encostado aos impostores:** o critério FAR = 0 na validação põe o threshold no score mais alto de um impostor de validação. Só houve 10 casos de impostor. Na validação e no teste, os genuínos ficaram entre 0.63 e 0.93 e os impostores entre 0.01 e 0.19, por isso qualquer valor entre 0.19 e 0.63 dava os mesmos resultados. Ao vivo, um desconhecido pode passar de 0.19. **Rever nos testes de sistema (M4)** e discutir no relatório.
 
 ---
@@ -77,10 +76,15 @@ Não há alterações no repositório desde 22 nov.
 
 **Expressão**
 - [x] Fazer fine-tuning de uma CNN compacta no AffectNet (`train_expression.py`, MobileNetV3-Small, 8 classes)
-- [ ] Avaliação intra-dataset na partição de teste do AffectNet. O `train_expression.py` já a faz; faltam os resultados no repositório.
-- [ ] Avaliação cross-dataset no BTFER sem re-treino, só com as 7 classes comuns. O `eval_expression_btfer.py` (antigo `btfer.py`) já a faz; faltam os resultados no repositório.
-- [ ] Métricas: accuracy, balanced accuracy, precisão/recall/F1 macro, matriz de confusão. Os scripts já as calculam e guardam em JSON e CSV.
-- [ ] Exportar para ONNX. Falta o script de exportação e o ficheiro `.onnx`. A inferência já está em `expression.py` (`ExpressionEstimator`, incerta abaixo de 0.5) e o overlay já está pronto.
+- [x] Métricas: accuracy, balanced accuracy, precisão/recall/F1 macro e matriz de confusão, em `results/expression/`
+- [x] Avaliação intra-dataset no teste do AffectNet (8 classes, equilibrado): accuracy 53.8%, F1 macro 0.54.
+  - Recall por classe: Happy 0.69 e Contempt 0.61 são as melhores; Surprise 0.42, Anger 0.48 e Fear 0.49 as piores.
+- [x] Avaliação cross-dataset no BTFER (2 100 imagens, 7 classes comuns, sem re-treino): accuracy 63.7%, F1 macro 0.63.
+  - Happy fica quase toda certa (recall 0.96); Fear é a pior (0.39), confundida com Sad e Surprise.
+  - Dá mais do que no AffectNet: há menos uma classe e o BTFER deve ter expressões mais marcadas (a confirmar no relatório).
+- [x] Exportar para ONNX: `src/tools/export_expression_onnx.py` gera `expression_best.onnx` + `.onnx.data` e compara com o PyTorch (diferença 1e-5). Inferência em `expression.py` (`ExpressionEstimator`, incerta abaixo de 0.5).
+- [x] Corrigir a ordem das classes (ver "Situação a 25 nov"). Nas fotos da galeria, a expressão sai agora coerente: a `surpresa.jpeg` dá Surprise (0.89) e as fotos frontais dão sobretudo Neutral ou Happy.
+- [ ] Ver a expressão ao vivo no `main.py` e medir a latência dela
 
 **Feito quando:** ambos os modelos correm em tempo real no `main.py` e todas as métricas estão calculadas.
 
@@ -114,7 +118,9 @@ Não há alterações no repositório desde 22 nov.
   - confiança da deteção
   - caras com menos de 40 px não são analisadas
 - [x] Medir FPS, latência por fase e end-to-end, CPU e memória (`monitoring.py`, painel no ecrã, `results/system/run_<data>.csv` no fim). A GPU não é medida.
-- [ ] Testar a aplicação ao vivo com a webcam: pausa, registo, apagar, fechar a janela
+- [x] Correr a aplicação com a webcam: 2 sessões a 25 nov, sem expressão. Média de 26 FPS (provavelmente o limite da câmara), 16–17 ms end-to-end (deteção 12–13 ms), CPU de 160–170% e até 543 MB de memória.
+- [x] Testar ao vivo a pausa, o registo (`e`) e o fechar da janela (25 nov)
+- [ ] Testar ao vivo o apagar de uma pessoa (`d`) e da galeria (`x`)
 - [ ] Otimizar: frequência de cada modelo por frame e resolução de entrada. No teste com vídeo, sem expressão: deteção 15 ms, identidade 4 ms, idade/género 1 ms, cerca de 50 FPS.
 - [ ] Testes da secção 6.2: uma e várias pessoas, entrar/sair do campo de visão, pose/distância/luz, duas pessoas registadas em simultâneo, pessoa não registada
 - [ ] Rever o threshold da identidade (0.193) com uma pessoa não registada ao vivo: anotar os scores que ela tem. Se passar de 0.19, decidir entre acrescentar uma margem e usar o ponto médio entre genuínos e impostores.
