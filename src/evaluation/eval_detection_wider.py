@@ -18,9 +18,10 @@ Uso:
   python -m src.evaluation.eval_detection_wider --detector scrfd.onnx --examples 6
   python -m src.evaluation.eval_detection_wider --detector det_10g.onnx
   --reuse: recalcula as métricas a partir das previsões guardadas, sem voltar a correr o detetor
+  --compare: só refaz as tabelas de comparação a partir dos resultados já guardados
 
 Saídas: results/detection/<detetor>/  metrics.json, robustness.csv, predictions.npz, examples/
-        results/detection/comparison.csv  (todos os detetores já avaliados)
+        results/detection/  comparison.csv, robustness_comparison.csv e comparison.md (todos os detetores)
 """
 import argparse
 import csv
@@ -30,9 +31,10 @@ from pathlib import Path
 
 import cv2 as cv
 import numpy as np
+import onnx
 from scipy.io import loadmat
 
-from src.config import DETECTION_THRESHOLD, DETECTOR_MODEL, RESULTS_DIR, WIDER_DIR
+from src.config import DETECTION_THRESHOLD, DETECTOR_MODEL, MODELS_DIR, RESULTS_DIR, WIDER_DIR
 from src.pipeline.detection import detect, load_detector
 
 IMAGES_DIR = WIDER_DIR / "WIDER_val" / "images"
@@ -224,15 +226,57 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
+def model_size(name: str) -> tuple[float, float]:
+    """(milhões de parâmetros, MB do ficheiro) de um modelo ONNX em models/."""
+    path = MODELS_DIR / name
+    graph = onnx.load(str(path), load_external_data=False).graph
+    return sum(int(np.prod(t.dims)) for t in graph.initializer) / 1e6, path.stat().st_size / 2**20
+
+
+def markdown_table(rows: list[dict]) -> str:
+    lines = ["| " + " | ".join(rows[0]) + " |", "|" + "---|" * len(rows[0])]
+    return "\n".join(lines + ["| " + " | ".join(str(v) for v in r.values()) + " |" for r in rows])
+
+
 def write_comparison() -> None:
+    """Tabelas lado a lado de todos os detetores já avaliados. Só lê os resultados guardados."""
+    runs = {p.parent.name: json.loads(p.read_text()) for p in sorted(OUT_ROOT.glob("*/metrics.json"))}
     rows = []
-    for path in sorted(OUT_ROOT.glob("*/metrics.json")):
-        m = json.loads(path.read_text())
-        rows.append({"detector": m["detector"], **{f"ap_{s}": round(m["ap"][s], 4) for s in SETTINGS},
-                     "ms_mean": round(m["time_ms"]["mean"], 1), "ms_p95": round(m["time_ms"]["p95"], 1),
+    for m in runs.values():
+        params, mb = model_size(m["detector"])
+        rows.append({"detector": m["detector"], "params_M": round(params, 2), "size_MB": round(mb, 1),
+                     **{f"ap_{s}": round(m["ap"][s], 4) for s in SETTINGS},
                      "precision_at_0.4": round(m["operating_point"]["precision"], 4),
-                     "recall_at_0.4": round(m["operating_point"]["recall"], 4)})
+                     "recall_at_0.4": round(m["operating_point"]["recall"], 4),
+                     **{f"ms_{k}": round(m["time_ms"][k], 1) for k in ("mean", "median", "p95")}})
     write_csv(OUT_ROOT / "comparison.csv", rows)
+
+    # Robustez: recall a 0.4 de cada detetor por grupo (todas as caras e só as >= 32 px).
+    robust = {name: list(csv.DictReader((OUT_ROOT / name / "robustness.csv").open())) for name in runs}
+    reference = next(iter(robust.values()))
+    assert all([(r["factor"], r["group"]) for r in rows_] == [(r["factor"], r["group"]) for r in reference]
+               for rows_ in robust.values()), "robustness.csv com grupos diferentes entre detetores"
+    pct = lambda v: f"{float(v):.1%}" if v else "—"
+    robustness = [{"factor": r["factor"], "group": r["group"], "n_faces": r["n_faces"],
+                   **{f"recall_{name}": pct(robust[name][i]["recall"]) for name in robust},
+                   "n_faces_32px+": r["n_faces_32px+"],
+                   **{f"recall_32px+_{name}": pct(robust[name][i]["recall_32px+"]) for name in robust}}
+                  for i, r in enumerate(reference)]
+    write_csv(OUT_ROOT / "robustness_comparison.csv", robustness)
+
+    summary = [{"Detetor": r["detector"], "Parâmetros (M)": r["params_M"], "Ficheiro (MB)": r["size_MB"],
+                **{f"AP {s}": f"{r[f'ap_{s}']:.1%}" for s in SETTINGS},
+                "Precisão @0.4": f"{r['precision_at_0.4']:.1%}", "Recall @0.4": f"{r['recall_at_0.4']:.1%}",
+                "ms média / mediana / p95": f"{r['ms_mean']} / {r['ms_median']} / {r['ms_p95']}"} for r in rows]
+    (OUT_ROOT / "comparison.md").write_text(
+        "# Comparação de detetores no WIDER Face (validação)\n\n"
+        f"{next(iter(runs.values()))['images']} imagens; "
+        f"AP com IoU >= {IOU} (avaliador oficial em Python); precisão e recall com o limiar da aplicação "
+        f"({DETECTION_THRESHOLD}). Tempo: ms por imagem do WIDER (redimensionar para 640 + inferência + NMS).\n\n"
+        + markdown_table(summary)
+        + "\n\n## Robustez (recall @0.4 por grupo)\n\n"
+        "Todas as caras e só as caras com pelo menos 32 px (isola o efeito do tamanho).\n\n"
+        + markdown_table(robustness) + "\n")
 
 
 def main():
@@ -240,7 +284,11 @@ def main():
     parser.add_argument("--detector", default=DETECTOR_MODEL, help="modelo em models/")
     parser.add_argument("--examples", type=int, default=0, help="guardar N imagens de exemplo")
     parser.add_argument("--reuse", action="store_true", help="usar as previsões já guardadas")
+    parser.add_argument("--compare", action="store_true", help="só refazer as tabelas de comparação")
     args = parser.parse_args()
+    if args.compare:
+        write_comparison()
+        return print(f"Tabelas em {OUT_ROOT}: comparison.csv, robustness_comparison.csv, comparison.md")
 
     out_dir = OUT_ROOT / Path(args.detector).stem
     out_dir.mkdir(parents=True, exist_ok=True)

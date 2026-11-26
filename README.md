@@ -121,6 +121,7 @@ Todos os comandos correm **a partir da raiz do repositório**, com `python -m`:
 source .venv/bin/activate
 python -m src.main                                  # aplicação (webcam 0)
 python -m src.main --source 0 --source video.mp4    # 's' alterna entre as fontes
+python -m src.main --attributes multitask           # idade/género/expressão com o modelo multitarefa (MULTITASK_RUN)
 
 python -m src.tools.enrol --all data/dados_caras --images frontal frontal2   # registar a galeria
 python -m src.tools.enrol --list | --remove NOME | --clear

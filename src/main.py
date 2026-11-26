@@ -5,6 +5,7 @@ Uso (a partir da raiz do repositório):
     python -m src.main                                # webcam 0
     python -m src.main --source 0 --source demo.mp4   # a tecla 's' alterna entre as fontes
     python -m src.main --detector det_10g.onnx        # outro detetor SCRFD
+    python -m src.main --attributes multitask         # idade/género/expressão com o modelo multitarefa
 
 Caminhos e limiares em src/config.py.
 
@@ -19,14 +20,16 @@ import cv2 as cv
 import numpy as np
 from scrfd import Face
 
-from src.config import (AGE_GENDER_MODEL, DETECTION_THRESHOLD, DETECTOR_MODEL, GENDER_UNCERTAIN_BELOW, MIN_FACE_SIZE)
+from src.config import (AGE_GENDER_MODEL, ATTRIBUTE_MODELS, DETECTION_THRESHOLD, DETECTOR_MODEL,
+                        GENDER_UNCERTAIN_BELOW, MIN_FACE_SIZE, MULTITASK_MODEL, MULTITASK_RUN)
 from src.pipeline.age_gender import AgeGenderEstimator, AgeGenderResult
 from src.pipeline.capture import open_source, parse_source
 from src.pipeline.detection import (attribute_crop, detect, expression_crop, identity_crop, largest_face,
-                                    load_detector)
+                                    load_detector, multitask_crop)
 from src.pipeline.expression import ExpressionEstimator, ExpressionResult
 from src.pipeline.identity import FaceEmbedder, Gallery, IdentityResult
 from src.pipeline.monitoring import Monitor
+from src.pipeline.multitask import MultiTaskEstimator
 
 WINDOW = "Facial Analysis"
 ENROL_FRAMES = 5        # imagens captadas no registo pela webcam
@@ -65,10 +68,14 @@ class App:
 
         # Modelos
         self.detector = load_detector(args.detector)
-        self.age_gender = AgeGenderEstimator(str(AGE_GENDER_MODEL), GENDER_UNCERTAIN_BELOW)
         self.embedder = FaceEmbedder()
         self.gallery = Gallery.load()
-        self.expression = ExpressionEstimator()
+        if args.attributes == "multitask":  # uma rede para idade, género e expressão
+            self.multitask = MultiTaskEstimator(MULTITASK_MODEL)
+        else:
+            self.multitask = None
+            self.age_gender = AgeGenderEstimator(str(AGE_GENDER_MODEL), GENDER_UNCERTAIN_BELOW)
+            self.expression = ExpressionEstimator()
 
         self.modules = {
             "age_gender": True,
@@ -96,12 +103,19 @@ class App:
             if r.analysed and self.modules["identity"]:
                 with self.monitor.stage("identity"):
                     r.identity = self.gallery.match(self.embedder.embed(identity_crop(frame, face)))
-            if r.analysed and self.modules["age_gender"]:
-                with self.monitor.stage("age_gender"):
-                    r.age_gender = self.age_gender.predict(attribute_crop(frame, face))
-            if r.analysed and self.modules["expression"]:
-                with self.monitor.stage("expression"):
-                    r.expression = self.expression.predict(expression_crop(frame, face))
+            if r.analysed and self.multitask is not None:
+                if self.modules["age_gender"] or self.modules["expression"]:
+                    with self.monitor.stage("multitask"):
+                        age_gender, expression = self.multitask.predict(multitask_crop(frame, face))
+                    r.age_gender = age_gender if self.modules["age_gender"] else None
+                    r.expression = expression if self.modules["expression"] else None
+            elif r.analysed:
+                if self.modules["age_gender"]:
+                    with self.monitor.stage("age_gender"):
+                        r.age_gender = self.age_gender.predict(attribute_crop(frame, face))
+                if self.modules["expression"]:
+                    with self.monitor.stage("expression"):
+                        r.expression = self.expression.predict(expression_crop(frame, face))
             results.append(r)
         return results
 
@@ -147,6 +161,7 @@ class App:
                  *(f"[{key}] {label}: {'on' if self.modules[name] else 'off'}"
                    for key, (name, label) in MODULES.items()),
                  f"Galeria: {len(self.gallery.names())} | thr {self.gallery.threshold:.3f}",
+                 f"Atributos: {self.attributes_label()}",
                  *(HELP if self.show_help else ["h: ajuda"])]
         if time.time() < self.message_until:
             lines.append(self.message)
@@ -157,6 +172,9 @@ class App:
         cv.addWeighted(overlay, 0.55, frame, 0.45, 0, frame)
         for i, text in enumerate(lines):
             put(frame, text, (6, 18 + 17 * i), YELLOW if text == self.message else WHITE, 0.42)
+
+    def attributes_label(self) -> str:
+        return f"multitarefa ({MULTITASK_RUN})" if self.multitask is not None else "genderage + expressao"
 
     def notify(self, text: str):
         print(text)
@@ -282,6 +300,7 @@ class App:
         self.cap.release()
         cv.destroyAllWindows()
         saved = self.monitor.save({"source": self.sources[self.source_index], "detector": self.args.detector,
+                                   "attributes": self.attributes_label(),
                                    **{f"module_{k}": v for k, v in self.modules.items()}})
         if saved:
             print(f"Estatísticas da sessão guardadas em {saved}")
@@ -294,6 +313,8 @@ def main():
     parser.add_argument("--detector", default=DETECTOR_MODEL, help="modelo SCRFD em models/")
     parser.add_argument("--det-threshold", type=float, default=DETECTION_THRESHOLD,
                         help="confiança mínima da deteção")
+    parser.add_argument("--attributes", choices=["separate", "multitask"], default=ATTRIBUTE_MODELS,
+                        help="modelos de idade/género e expressão (ver ATTRIBUTE_MODELS em config.py)")
     App(parser.parse_args()).run()
 
 

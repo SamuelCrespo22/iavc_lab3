@@ -31,6 +31,9 @@ EXPRESSION_CHECKPOINT = MODELS_DIR / "expression_best.pth"
 MULTITASK_INPUT_SIZE = 112            # lado do crop do modelo multitarefa (treino e aplicação)
 MULTITASK_RUN = "mnet112"             # corrida do train_multitask.py usada pela aplicação e pela avaliação
 MULTITASK_MODEL = MODELS_DIR / "multitask" / MULTITASK_RUN / "multitask.onnx"
+# Idade/género e expressão na aplicação: "separate" (genderage + MobileNet de expressão) ou "multitask"
+# (MULTITASK_MODEL). A identidade é sempre o ArcFace. Também se escolhe com --attributes.
+ATTRIBUTE_MODELS = "separate"
 
 # ---- Limiares ----
 DETECTION_THRESHOLD = 0.4
