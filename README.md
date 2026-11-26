@@ -14,9 +14,9 @@ O enunciado completo está em [assignment.pdf](assignment.pdf).
 
 ## Estado atual
 
-O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo (25 nov):
-- **Feito:** deteção (avaliada no WIDER Face), alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), expressão (avaliada no AffectNet e no BTFER, exportada para ONNX), interface e monitorização.
-- **Falta:** testar a expressão e as teclas ao vivo, testes de sistema, consentimento escrito dos voluntários, relatório e vídeo de demonstração.
+O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
+- **Feito:** deteção (avaliada no WIDER Face), alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), expressão (avaliada no AffectNet e no BTFER, exportada para ONNX e testada ao vivo), interface e monitorização.
+- **Falta:** testar as teclas `d`/`x` ao vivo, testes de sistema, consentimento escrito dos voluntários, relatório e vídeo de demonstração.
 
 ## Estrutura do repositório
 
@@ -82,7 +82,7 @@ Os pesos **não estão incluídos no repositório** (por tamanho e por termos de
 | `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade |
 | `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Não usados |
 | `expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
-| `expression_best.onnx` + `expression_best.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois) | Expressão na aplicação. Gerados por `src/tools/export_expression_onnx.py`.|
+| `expression_best.onnx` + `expression_best.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois) | Expressão na aplicação. Gerados por `src/tools/export_expression_onnx.py`. Obrigatórios para a aplicação arrancar. |
 
 Os índices de saída do modelo de expressão seguem a ordem das pastas `0`–`7` do AffectNet usado no treino, que não é a ordem oficial do AffectNet. A ordem está em `CLASSES`, em `src/pipeline/expression.py`.
 

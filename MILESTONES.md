@@ -2,12 +2,12 @@
 
 Entrega: **29 de novembro de 2026**.
 
-| # | Milestone | Datas | Responsável | Estado (25 nov) |
+| # | Milestone | Datas | Responsável | Estado (26 nov) |
 |---|-----------|-------|-------------|-----------------|
 | M1 | Pipeline base + avaliação do detetor | 12–16 nov | Samuel | 🟢 Código, avaliação no WIDER (com a comparação extra) e licenças verificados; falta a secção do relatório |
-| M2 | Idade/género e expressão | 12–21 nov | Luciana | 🟢 Ambos avaliados e integrados; falta ver a expressão ao vivo |
-| M3 | Galeria de identidades | 17–22 nov | Samuel | 🟢 Implementado e avaliado; falta o consentimento escrito |
-| M4 | Interface, desempenho e testes de sistema | 22–25 nov | Ambos | 🟡 Interface e monitorização feitas, app testada com a webcam; falta testar `d`/`x` e a expressão ao vivo, otimizar e fazer os testes 6.2 |
+| M2 | Idade/género e expressão | 12–21 nov | Luciana | 🟢 Ambos avaliados, integrados e testados ao vivo; falta a idade por condição da imagem |
+| M3 | Galeria de identidades | 17–22 nov | Samuel | 🟢 Implementado e avaliado; falta o consentimento escrito e fotos com outra iluminação |
+| M4 | Interface, desempenho e testes de sistema | 22–25 nov | Ambos | 🟡 Interface e monitorização feitas, app testada com a webcam com todos os módulos; falta testar `d`/`x`, uma sessão longa com tudo ligado, otimizar e fazer os testes 6.2 |
 | M5 | Relatório, vídeo e entrega | 25–29 nov | Ambos | ⚪ Por começar |
 
 ## Plano até à entrega
@@ -15,14 +15,18 @@ Entrega: **29 de novembro de 2026**.
 | Dia | O quê | Estado |
 |---|---|---|
 | **24 nov** | Escrever o relatório que der (deteção, idade/género, identidade, arquitetura) | ⚠️ Não feito: relatório por começar |
-| **25 nov** | Passou de 23 nov. Receber da Luciana tudo o que falta da expressão (`.onnx`, `.pth`, script de exportação, métricas do AffectNet e do BTFER) e integrar. Testar a aplicação com a webcam. Script de gráficos, por partes. Revisão completa do código. | Hoje. Expressão recebida, corrigida e integrada; app corrida com a webcam. Falta: gráficos e revisão do código |
-| **26 nov** | Testes ao vivo na aula: testes 6.2, threshold da identidade com pessoas não registadas, gravar o vídeo de demonstração | |
+| **25 nov** | Passou de 23 nov. Receber da Luciana tudo o que falta da expressão (`.onnx`, `.pth`, script de exportação, métricas do AffectNet e do BTFER) e integrar. Testar a aplicação com a webcam. Script de gráficos, por partes. Revisão completa do código. | Expressão recebida, corrigida, integrada e testada ao vivo; app corrida com a webcam. Revisão do código feita em parte a 26 nov. Falta: gráficos |
+| **26 nov** | Testes ao vivo na aula: testes 6.2, threshold da identidade com pessoas não registadas, sessão longa com tudo ligado, fotos com outra iluminação, gravar o vídeo de demonstração | Hoje |
 | **28 nov** | Revisão final em conjunto | |
 | **29 nov** | Entrega | |
 
-## Situação a 25 nov
+## Situação a 26 nov
 
 **Bloqueios e problemas em aberto**
+- **Lacunas face às métricas pedidas no enunciado (6.1):**
+  - **idade por condição da imagem:** o UTKFace não tem estas labels. Ou se degrada um subconjunto (blur, resolução, brilho) e se mede o MAE, ou fica como limitação no relatório;
+  - **identidade com outra iluminação:** nenhuma das fotos atuais varia a luz. A amostra também é pequena (13 genuínos e 13 impostores no teste);
+  - **sistema:** a única sessão com os 4 módulos tem 69 frames. Falta uma sessão longa. A GPU não é medida (CoreML no macOS), o que tem de ser explicado no relatório.
 - **Ordem das classes da expressão (resolvido; a Luciana tem de saber e o relatório tem de o explicar):** as pastas `0`–`7` do AffectNet usado no treino seguem a ordem `Anger, Disgust, Fear, Happy, Sad, Surprise, Neutral, Contempt`, não a ordem oficial do AffectNet (0 = Neutral), que era a que o código assumia.
   - **Efeitos:** a app mostrava a classe errada (uma cara neutra aparecia como "Anger") e o BTFER dava accuracy 7.3%, abaixo do acaso.
   - **Como se confirmou:**
@@ -73,6 +77,7 @@ Entrega: **29 de novembro de 2026**.
   - Falha mais em crianças (60%), em idosos (75%) e no grupo Asian (79%).
   - Cobertura de 95.9% com o limiar de incerteza de 0.65.
 - [x] Mostrar a idade como intervalo e marcar previsões com pouca confiança como incertas (a cinzento, com "?")
+- [ ] Idade por condição da imagem (ver "Situação a 26 nov")
 
 **Expressão**
 - [x] Fazer fine-tuning de uma CNN compacta no AffectNet (`train_expression.py`, MobileNetV3-Small, 8 classes)
@@ -83,8 +88,9 @@ Entrega: **29 de novembro de 2026**.
   - Happy fica quase toda certa (recall 0.96); Fear é a pior (0.39), confundida com Sad e Surprise.
   - Dá mais do que no AffectNet: há menos uma classe e o BTFER deve ter expressões mais marcadas (a confirmar no relatório).
 - [x] Exportar para ONNX: `src/tools/export_expression_onnx.py` gera `expression_best.onnx` + `.onnx.data` e compara com o PyTorch (diferença 1e-5). Inferência em `expression.py` (`ExpressionEstimator`, incerta abaixo de 0.5).
-- [x] Corrigir a ordem das classes (ver "Situação a 25 nov"). Nas fotos da galeria, a expressão sai agora coerente: a `surpresa.jpeg` dá Surprise (0.89) e as fotos frontais dão sobretudo Neutral ou Happy.
-- [ ] Ver a expressão ao vivo no `main.py` e medir a latência dela
+- [x] Corrigir a ordem das classes (ver "Situação a 26 nov"). Nas fotos da galeria, a expressão sai agora coerente: a `surpresa.jpeg` dá Surprise (0.89) e as fotos frontais dão sobretudo Neutral ou Happy.
+- [x] Ver a expressão ao vivo no `main.py` e medir a latência dela (25 nov): labels coerentes, 8–11 ms por frame
+- [x] O modelo de expressão passou a ser obrigatório (26 nov): sem o `.onnx` a aplicação não arranca, como acontece com os outros modelos
 
 **Feito quando:** ambos os modelos correm em tempo real no `main.py` e todas as métricas estão calculadas.
 
@@ -101,6 +107,7 @@ Entrega: **29 de novembro de 2026**.
 - [x] Avaliar: rank-1, FAR/FRR, sensibilidade ao threshold, efeito do número de imagens de registo. No teste deu rank-1 100%, FRR 0% e FAR 0%, com 2 fotos e com 1 foto de registo. Os resultados estão em `results/identity/`; os gráficos fazem-se a partir dos CSV.
 - [x] Galeria guardada só localmente; o registo pela webcam pede confirmação de consentimento
 - [ ] Consentimento escrito dos voluntários (< 20)
+- [ ] Fotos com outra iluminação, para avaliar o efeito da luz como pede o enunciado
 
 **Feito quando:** pessoas registadas são reconhecidas e uma pessoa não registada aparece como "Unknown".
 
@@ -119,9 +126,11 @@ Entrega: **29 de novembro de 2026**.
   - caras com menos de 40 px não são analisadas
 - [x] Medir FPS, latência por fase e end-to-end, CPU e memória (`monitoring.py`, painel no ecrã, `results/system/run_<data>.csv` no fim). A GPU não é medida.
 - [x] Correr a aplicação com a webcam: 2 sessões a 25 nov, sem expressão. Média de 26 FPS (provavelmente o limite da câmara), 16–17 ms end-to-end (deteção 12–13 ms), CPU de 160–170% e até 543 MB de memória.
+  - Mais 2 sessões a 25 nov com a expressão ligada: 13–17 FPS, 24–31 ms end-to-end (expressão 8–11 ms), CPU de 113–124% e até 850 MB. A sessão com todos os módulos tem só 69 frames.
+- [ ] Sessão longa (vários minutos) com os 4 módulos ligados, para os números finais do relatório
 - [x] Testar ao vivo a pausa, o registo (`e`) e o fechar da janela (25 nov)
 - [ ] Testar ao vivo o apagar de uma pessoa (`d`) e da galeria (`x`)
-- [ ] Otimizar: frequência de cada modelo por frame e resolução de entrada. No teste com vídeo, sem expressão: deteção 15 ms, identidade 4 ms, idade/género 1 ms, cerca de 50 FPS.
+- [ ] Otimizar: frequência de cada modelo por frame e resolução de entrada. No teste com vídeo, sem expressão: deteção 15 ms, identidade 4 ms, idade/género 1 ms, cerca de 50 FPS. Com a expressão ao vivo o FPS desce para 13–17; a primeira hipótese é correr a expressão e a idade/género de N em N frames.
 - [ ] Testes da secção 6.2: uma e várias pessoas, entrar/sair do campo de visão, pose/distância/luz, duas pessoas registadas em simultâneo, pessoa não registada
 - [ ] Rever o threshold da identidade (0.193) com uma pessoa não registada ao vivo: anotar os scores que ela tem. Se passar de 0.19, decidir entre acrescentar uma margem e usar o ponto médio entre genuínos e impostores.
 
