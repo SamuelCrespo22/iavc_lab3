@@ -1,11 +1,17 @@
+"""
+Fine-tuning do modelo de expressão no AffectNet (pastas 0–7, ver CLASSES em expression.py).
+
+    python -m src.training.train_expression                    # MobileNetV3-Small -> models/expression_best.pth
+    python -m src.training.train_expression --arch resnet50    # ResNet-50 -> models/expression_resnet50.pth
+"""
+import argparse
 import json
 
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms, models
-from torchvision.models import MobileNet_V3_Small_Weights
+from torchvision import datasets, transforms
 
 from sklearn.metrics import (
     accuracy_score,
@@ -17,6 +23,12 @@ from sklearn.metrics import (
 
 from src.config import AFFECTNET_DIR, MODELS_DIR, RESULTS_DIR
 from src.pipeline.expression import CLASSES
+from src.training.expression_models import ARCHS, build_model, checkpoint_path, suffix
+
+parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument("--arch", choices=ARCHS, default="mobilenet")
+parser.add_argument("--batch-size", type=int, default=32, help="baixar (ex.: 16) se faltar memória")
+args = parser.parse_args()
 
 DATA_DIR = AFFECTNET_DIR
 MODEL_DIR = MODELS_DIR                      # checkpoint (.pth)
@@ -25,7 +37,7 @@ OUTPUT_DIR = RESULTS_DIR / "expression"     # métricas de teste
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-BATCH_SIZE = 32
+BATCH_SIZE = args.batch_size
 EPOCHS = 10
 LEARNING_RATE = 1e-4
 PATIENCE = 4
@@ -38,6 +50,7 @@ device = torch.device(
 )
 
 print("Selected device:", device)
+print("Architecture:", args.arch)
 
 
 train_transform = transforms.Compose([
@@ -116,14 +129,7 @@ test_loader = DataLoader(
 )
 
 
-weights = MobileNet_V3_Small_Weights.DEFAULT
-model = models.mobilenet_v3_small(weights=weights)
-
-model.classifier[3] = nn.Linear(
-    model.classifier[3].in_features,
-    num_classes
-)
-
+model = build_model(args.arch, num_classes, pretrained=True)
 model = model.to(device)
 
 
@@ -198,7 +204,7 @@ def evaluate(model, loader):
 best_val_f1 = 0.0
 epochs_without_improvement = 0
 
-best_model_path = MODEL_DIR / "expression_best.pth"
+best_model_path = checkpoint_path(args.arch)
 
 for epoch in range(EPOCHS):
 
@@ -251,6 +257,7 @@ for epoch in range(EPOCHS):
 
         torch.save({
             "model_state_dict": model.state_dict(),
+            "arch": args.arch,
             "class_names": class_names,
             "image_size": IMAGE_SIZE,
             "best_val_f1": best_val_f1
@@ -292,7 +299,7 @@ print(classification_report(
 cm = confusion_matrix(y_true, y_pred)
 
 np.savetxt(
-    OUTPUT_DIR / "expression_confusion_matrix.csv",
+    OUTPUT_DIR / f"expression{suffix(args.arch)}_confusion_matrix.csv",
     cm,
     delimiter=",",
     fmt="%d",
@@ -300,7 +307,7 @@ np.savetxt(
     comments=""
 )
 
-with open(OUTPUT_DIR / "expression_test_metrics.json", "w") as f:
+with open(OUTPUT_DIR / f"expression{suffix(args.arch)}_test_metrics.json", "w") as f:
     json.dump(test_metrics, f, indent=4)
 
 print("\nTraining and evaluation completed.")

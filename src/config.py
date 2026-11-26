@@ -18,8 +18,8 @@ RESULTS_DIR = ROOT_DIR / "results"    # métricas e CSV das avaliações
 UTKFACE_DIR = DATA_DIR / "UTKFace"
 WIDER_DIR = DATA_DIR / "WIDER"
 GALLERY_PHOTOS_DIR = DATA_DIR / "dados_caras"   # uma subpasta por pessoa
-AFFECTNET_DIR = ROOT_DIR / "AffectNetCustom"    # train/ val/ test/
-BTFER_DIR = ROOT_DIR / "BTFER"
+AFFECTNET_DIR = DATA_DIR / "AffectNetCustom"    # train/ val/ test/
+BTFER_DIR = DATA_DIR / "BTFER"
 
 # ---- Modelos ----
 DETECTOR_MODEL = "scrfd.onnx"         # nome do ficheiro em MODELS_DIR (alternativa: det_10g.onnx)

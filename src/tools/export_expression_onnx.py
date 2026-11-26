@@ -4,6 +4,10 @@ dá as mesmas saídas que o PyTorch. Os pesos podem ficar num ficheiro ao lado (
 nesse caso, os dois ficheiros são necessários.
 
     python -m src.tools.export_expression_onnx
+    python -m src.tools.export_expression_onnx --checkpoint models/expression_resnet50.pth \
+                                               --output models/expression_resnet50.onnx
+
+A arquitetura (MobileNet ou ResNet-50) é lida do checkpoint.
 """
 import argparse
 from pathlib import Path
@@ -12,16 +16,15 @@ import numpy as np
 import onnxruntime as ort
 import torch
 import torch.nn as nn
-from torchvision import models
 
 from src.config import EXPRESSION_CHECKPOINT, EXPRESSION_MODEL
 from src.pipeline.expression import CLASSES
+from src.training.expression_models import build_model, checkpoint_arch
 
 
 def load_model(checkpoint_path: Path) -> nn.Module:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    model = models.mobilenet_v3_small(weights=None)
-    model.classifier[3] = nn.Linear(model.classifier[3].in_features, len(CLASSES))
+    model = build_model(checkpoint_arch(checkpoint), len(CLASSES), pretrained=False)
     model.load_state_dict(checkpoint["model_state_dict"])
     return model.eval()
 

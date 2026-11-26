@@ -1,11 +1,19 @@
+"""
+Avaliação cross-dataset da expressão no BTFER (7 classes comuns, sem re-treino).
 
+    python -m src.evaluation.eval_expression_btfer                                          # MobileNet
+    python -m src.evaluation.eval_expression_btfer --checkpoint models/expression_resnet50.pth
+
+A arquitetura é lida do checkpoint; os resultados da ResNet-50 levam o sufixo _resnet50.
+"""
+import argparse
 import json
+from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms, models
+from torchvision import datasets, transforms
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -18,9 +26,9 @@ from sklearn.metrics import (
 
 from src.config import BTFER_DIR, EXPRESSION_CHECKPOINT, RESULTS_DIR
 from src.pipeline.expression import CLASSES
+from src.training.expression_models import build_model, checkpoint_arch, suffix
 
 DATASET_DIR = BTFER_DIR
-CHECKPOINT_PATH = EXPRESSION_CHECKPOINT
 OUTPUT_DIR = RESULTS_DIR / "expression"
 
 IMAGE_SIZE = 224
@@ -45,6 +53,10 @@ def btfer_target(folder: str) -> int:
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--checkpoint", type=Path, default=EXPRESSION_CHECKPOINT)
+    args = parser.parse_args()
+
     print(f"Selected device: {DEVICE}")
 
     transform = transforms.Compose([
@@ -81,17 +93,14 @@ def main():
     )
 
     checkpoint = torch.load(
-        CHECKPOINT_PATH,
+        args.checkpoint,
         map_location=DEVICE,
         weights_only=False
     )
 
-    model = models.mobilenet_v3_small(weights=None)
-
-    model.classifier[3] = nn.Linear(
-        model.classifier[3].in_features,
-        len(CLASSES)
-    )
+    arch = checkpoint_arch(checkpoint)
+    model = build_model(arch, len(CLASSES), pretrained=False)
+    print("Architecture:", arch)
 
     model.load_state_dict(checkpoint["model_state_dict"])
     model.to(DEVICE)
@@ -179,7 +188,7 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     with open(
-        OUTPUT_DIR / "expression_btfer_metrics.json",
+        OUTPUT_DIR / f"expression{suffix(arch)}_btfer_metrics.json",
         "w"
     ) as file:
         json.dump(
@@ -189,7 +198,7 @@ def main():
         )
 
     np.savetxt(
-        OUTPUT_DIR / "expression_btfer_confusion_matrix.csv",
+        OUTPUT_DIR / f"expression{suffix(arch)}_btfer_confusion_matrix.csv",
         matrix,
         delimiter=",",
         fmt="%d",

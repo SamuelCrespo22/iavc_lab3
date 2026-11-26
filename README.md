@@ -42,7 +42,8 @@ O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resu
 │   │   ├── eval_age_gender.py
 │   │   └── eval_expression_btfer.py
 │   └── training/
-│       └── train_expression.py  # Fine-tuning da expressão no AffectNet
+│       ├── train_expression.py  # Fine-tuning da expressão no AffectNet (--arch mobilenet | resnet50)
+│       └── expression_models.py #   arquiteturas da expressão (treino, exportação e avaliação)
 ├── models/                      # Pesos (não versionados; ver abaixo)
 ├── data/                        # Datasets (não versionados; ver abaixo)
 ├── gallery/                     # Embeddings da galeria (não versionados)
@@ -107,8 +108,8 @@ Nenhum dataset é versionado. As localizações estão em `src/config.py`:
 | UTKFace | `data/UTKFace/` | Avaliação de idade e género. Labels no nome: `[idade]_[género]_[etnia]_[data].jpg.chip.jpg` |
 | WIDER Face (val) | `data/WIDER/` (`WIDER_val/`, `wider_face_split/`, `eval_tools/`) | Avaliação do detetor |
 | Fotos da galeria | `data/dados_caras/<pessoa>/` | Avaliação da identidade (voluntários com consentimento) |
-| AffectNet | `AffectNetCustom/` (`train/`, `val/`, `test/`) | Treino e avaliação intra-dataset da expressão |
-| BTFER | `BTFER/` | Avaliação cross-dataset da expressão |
+| AffectNet | `data/AffectNetCustom/` (`train/`, `val/`, `test/`) | Treino e avaliação intra-dataset da expressão |
+| BTFER | `data/BTFER/` | Avaliação cross-dataset da expressão |
 
 ## Execução
 
@@ -128,6 +129,11 @@ python -m src.evaluation.eval_age_gender            # resultados em results/age_
 python -m src.evaluation.eval_expression_btfer      # resultados em results/expression/
 python -m src.training.train_expression             # checkpoint em models/, métricas em results/expression/
 python -m src.tools.export_expression_onnx          # .pth -> .onnx (+ .onnx.data), com verificação
+
+# Experiência: ResNet-50 em vez da MobileNet (ficheiros com o sufixo _resnet50; não substitui o modelo da app)
+python -m src.training.train_expression --arch resnet50
+python -m src.evaluation.eval_expression_btfer --checkpoint models/expression_resnet50.pth
+python -m src.tools.export_expression_onnx --checkpoint models/expression_resnet50.pth --output models/expression_resnet50.onnx
 ```
 
 Na aplicação, carregar em **`h`** para ver as teclas: parar/retomar a câmara, mudar de fonte, ligar/desligar módulos, registar/apagar pessoas e sair (**`q`**).
