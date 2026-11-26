@@ -43,9 +43,11 @@ O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resu
 │   │   └── eval_expression_btfer.py
 │   └── training/
 │       ├── train_expression.py  # Fine-tuning da expressão no AffectNet
-│       ├── multitask_model.py   # MobileNetV3 partilhada: expressão, género e idade (em desenvolvimento)
+│       ├── multitask_model.py   # backbone partilhado (MobileNetV3 / ResNet): expressão, género e idade
 │       ├── prepare_multitask.py #   lista de imagens e labels (data/multitask/labels.csv)
 │       └── train_multitask.py   #   treino e exportação para ONNX (models/multitask/<corrida>/)
+├── colab/
+│   └── train_multitask.ipynb    # o mesmo treino numa GPU do Google Colab
 ├── models/                      # Pesos (não versionados; ver abaixo)
 ├── data/                        # Datasets (não versionados; ver abaixo)
 ├── gallery/                     # Embeddings da galeria (não versionados)
@@ -132,6 +134,11 @@ python -m src.evaluation.eval_age_gender            # resultados em results/age_
 python -m src.evaluation.eval_expression_btfer      # resultados em results/expression/
 python -m src.training.train_expression             # checkpoint em models/, métricas em results/expression/
 python -m src.tools.export_expression_onnx          # .pth -> .onnx (+ .onnx.data), com verificação
+
+python -m src.training.prepare_multitask            # uma vez: data/multitask/labels.csv
+python -m src.training.train_multitask --run mnet160 --input-size 160                          # MobileNetV3
+python -m src.training.train_multitask --run r50_224_l4 --arch resnet50 --input-size 224 --freeze-until layer3
+python -m src.evaluation.eval_multitask --run mnet160   # teste, lado a lado com a pipeline atual
 ```
 
 Na aplicação, carregar em **`h`** para ver as teclas: parar/retomar a câmara, mudar de fonte, ligar/desligar módulos, registar/apagar pessoas e sair (**`q`**).

@@ -1,9 +1,12 @@
 """
-Treino do modelo multitarefa: MobileNetV3-Small (ImageNet) partilhada pela expressão, género e idade.
+Treino do modelo multitarefa: um backbone do ImageNet partilhado pela expressão, género e idade.
 
     python -m src.training.prepare_multitask                    # uma vez: data/multitask/labels.csv
     python -m src.training.train_multitask [--run nome] [--input-size 160]   # nome por omissão: data e hora
+    python -m src.training.train_multitask --run r50_224_l4 --arch resnet50 --input-size 224 --freeze-until layer3
     python -m src.training.train_multitask --run teste --epochs 1 --limit 2000   # teste rápido
+
+Usa a GPU CUDA (Colab, com precisão mista), senão a MPS do Mac, senão a CPU. No Colab: colab/train_multitask.ipynb.
 
 Grava em models/multitask/<run>/:
   multitask.pth   melhor época na validação (soma ponderada das losses de cada tarefa)
@@ -29,14 +32,15 @@ from torchvision import transforms
 
 from src.config import DATA_DIR, MODELS_DIR, MULTITASK_DATA_DIR, MULTITASK_INPUT_SIZE
 from src.pipeline.expression import CLASSES
-from src.training.multitask_model import GENDERS, TASKS, MultiTaskNet, multitask_loss, task_loss
+from src.training.multitask_model import ARCHS, GENDERS, RESNET_STAGES, TASKS, MultiTaskNet, multitask_loss, task_loss
 
 LOSS_WEIGHTS = {"expression": 1.0, "gender": 1.0, "age": 1.0}
 BATCH_SIZE = 64
 LR_BACKBONE, LR_HEADS = 1e-4, 1e-3  # o backbone já vem treinado; as cabeças começam aleatórias
 PATIENCE = 4
 IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+USE_AMP = DEVICE.type == "cuda"  # precisão mista: ~2x mais rápido numa GPU NVIDIA
 
 
 class FaceDataset(Dataset):
@@ -122,36 +126,47 @@ def main():
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--input-size", type=int, default=MULTITASK_INPUT_SIZE, help="lado da imagem de entrada")
     parser.add_argument("--limit", type=int, help="só N imagens de treino e de validação (teste rápido)")
+    parser.add_argument("--arch", choices=ARCHS, default="mobilenet")
+    parser.add_argument("--freeze-until", choices=RESNET_STAGES[2:], help="ResNet: congelar até este bloco")
+    parser.add_argument("--workers", type=int, default=4, help="processos a ler imagens (Colab gratuito: 2)")
     args = parser.parse_args()
 
     run_dir = MODELS_DIR / "multitask" / args.run
     run_dir.mkdir(parents=True, exist_ok=True)
     loader = lambda split, train: DataLoader(FaceDataset(split, train, args.input_size, args.limit), BATCH_SIZE,
-                                             shuffle=train,
-                                             num_workers=4, persistent_workers=True)
+                                             shuffle=train, num_workers=args.workers,
+                                             persistent_workers=args.workers > 0, pin_memory=USE_AMP)
     train_loader, val_loader = loader("train", True), loader("val", False)
 
-    model = MultiTaskNet(pretrained=True).to(DEVICE)
-    optimizer = torch.optim.AdamW([{"params": model.backbone.parameters(), "lr": LR_BACKBONE},
+    model = MultiTaskNet(pretrained=True, arch=args.arch, freeze_until=args.freeze_until).to(DEVICE)
+    trainable = [p for p in model.backbone.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW([*([{"params": trainable, "lr": LR_BACKBONE}] if trainable else []),
                                    {"params": model.heads.parameters(), "lr": LR_HEADS}], weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=1)
-    config = {"input_size": args.input_size, "batch_size": BATCH_SIZE, "lr_backbone": LR_BACKBONE,
+    scaler = torch.amp.GradScaler(enabled=USE_AMP)
+    config = {"arch": args.arch, "freeze_until": args.freeze_until,
+              "trainable_params": sum(p.numel() for p in model.parameters() if p.requires_grad),
+              "input_size": args.input_size, "batch_size": BATCH_SIZE, "lr_backbone": LR_BACKBONE,
               "lr_heads": LR_HEADS, "loss_weights": LOSS_WEIGHTS, "max_epochs": args.epochs, "patience": PATIENCE,
               "train_images": len(train_loader.dataset), "val_images": len(val_loader.dataset),
               "classes": CLASSES, "genders": GENDERS, "history": []}
-    print(f"{DEVICE} | treino {config['train_images']} | validação {config['val_images']} | {run_dir}")
+    print(f"{DEVICE} | {args.arch} {args.input_size}px, congelado até {args.freeze_until or '—'} "
+          f"({config['trainable_params'] / 1e6:.2f} M parâmetros a treinar) | treino {config['train_images']} | "
+          f"validação {config['val_images']} | {run_dir}")
 
     best, stale = float("inf"), 0
     for epoch in range(1, args.epochs + 1):
         model.train()
         start, losses = time.time(), []
         for x, y in train_loader:
-            loss = multitask_loss(model(x.to(DEVICE)), {t: v.to(DEVICE) for t, v in y.items()}, LOSS_WEIGHTS)
+            with torch.autocast(DEVICE.type, enabled=USE_AMP):
+                loss = multitask_loss(model(x.to(DEVICE)), {t: v.to(DEVICE) for t, v in y.items()}, LOSS_WEIGHTS)
             if not torch.is_tensor(loss):  # batch sem nenhuma label
                 continue
             optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             losses.append(loss.item())
 
         val = evaluate(model, val_loader)
