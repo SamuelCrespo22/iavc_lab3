@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 from scrfd import SCRFD, Face, Threshold
 
-from src.config import DETECTION_THRESHOLD, DETECTOR_MODEL, MODELS_DIR, onnx_providers
+from src.config import DETECTION_THRESHOLD, DETECTOR_MODEL, MODELS_DIR, MULTITASK_INPUT_SIZE, onnx_providers
 from src.pipeline.alignment import align_face, keypoints_to_array
 
 
@@ -50,3 +50,11 @@ def attribute_crop(frame_bgr: np.ndarray, face: Face, size: int = 96, scale: flo
 def expression_crop(frame_bgr: np.ndarray, face: Face) -> np.ndarray:
     """Crop 224x224 alinhado com margem, usado pelo modelo de expressão."""
     return align_face(frame_bgr, keypoints_to_array(face), size=224, margin=0.2)
+
+
+def multitask_crop(frame_bgr: np.ndarray, face: Face) -> np.ndarray:
+    """
+    Crop do modelo multitarefa (MULTITASK_INPUT_SIZE): o quadrado da caixa do SCRFD, sem rotação. É o enquadramento
+    das imagens do AffectNet e do UTKFace (medido: lado da imagem = 0.96–1.01x o lado da caixa, centrado).
+    """
+    return attribute_crop(frame_bgr, face, size=MULTITASK_INPUT_SIZE, scale=1.0)

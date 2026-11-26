@@ -42,8 +42,10 @@ O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resu
 │   │   ├── eval_age_gender.py
 │   │   └── eval_expression_btfer.py
 │   └── training/
-│       ├── train_expression.py  # Fine-tuning da expressão no AffectNet (--arch mobilenet | resnet50)
-│       └── expression_models.py #   arquiteturas da expressão (treino, exportação e avaliação)
+│       ├── train_expression.py  # Fine-tuning da expressão no AffectNet
+│       ├── multitask_model.py   # MobileNetV3 partilhada: expressão, género e idade (em desenvolvimento)
+│       ├── prepare_multitask.py #   lista de imagens e labels (data/multitask/labels.csv)
+│       └── train_multitask.py   #   treino e exportação para ONNX (models/multitask/<corrida>/)
 ├── models/                      # Pesos (não versionados; ver abaixo)
 ├── data/                        # Datasets (não versionados; ver abaixo)
 ├── gallery/                     # Embeddings da galeria (não versionados)
@@ -129,11 +131,6 @@ python -m src.evaluation.eval_age_gender            # resultados em results/age_
 python -m src.evaluation.eval_expression_btfer      # resultados em results/expression/
 python -m src.training.train_expression             # checkpoint em models/, métricas em results/expression/
 python -m src.tools.export_expression_onnx          # .pth -> .onnx (+ .onnx.data), com verificação
-
-# Experiência: ResNet-50 em vez da MobileNet (ficheiros com o sufixo _resnet50; não substitui o modelo da app)
-python -m src.training.train_expression --arch resnet50
-python -m src.evaluation.eval_expression_btfer --checkpoint models/expression_resnet50.pth
-python -m src.tools.export_expression_onnx --checkpoint models/expression_resnet50.pth --output models/expression_resnet50.onnx
 ```
 
 Na aplicação, carregar em **`h`** para ver as teclas: parar/retomar a câmara, mudar de fonte, ligar/desligar módulos, registar/apagar pessoas e sair (**`q`**).

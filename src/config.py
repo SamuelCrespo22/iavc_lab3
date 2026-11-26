@@ -20,6 +20,7 @@ WIDER_DIR = DATA_DIR / "WIDER"
 GALLERY_PHOTOS_DIR = DATA_DIR / "dados_caras"   # uma subpasta por pessoa
 AFFECTNET_DIR = DATA_DIR / "AffectNetCustom"    # train/ val/ test/
 BTFER_DIR = DATA_DIR / "BTFER"
+MULTITASK_DATA_DIR = DATA_DIR / "multitask"     # labels.csv (prepare_multitask.py)
 
 # ---- Modelos ----
 DETECTOR_MODEL = "scrfd.onnx"         # nome do ficheiro em MODELS_DIR (alternativa: det_10g.onnx)
@@ -27,6 +28,7 @@ AGE_GENDER_MODEL = MODELS_DIR / "genderage.onnx"
 EMBEDDING_MODEL = MODELS_DIR / "w600k_r50.onnx"
 EXPRESSION_MODEL = MODELS_DIR / "expression_best.onnx"
 EXPRESSION_CHECKPOINT = MODELS_DIR / "expression_best.pth"
+MULTITASK_INPUT_SIZE = 112            # lado do crop do modelo multitarefa (treino e aplicação)
 
 # ---- Limiares ----
 DETECTION_THRESHOLD = 0.4
