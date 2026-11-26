@@ -5,7 +5,7 @@ Uso (a partir da raiz do repositório):
     python -m src.main                                # webcam 0
     python -m src.main --source 0 --source demo.mp4   # a tecla 's' alterna entre as fontes
     python -m src.main --detector det_10g.onnx        # outro detetor SCRFD
-    python -m src.main --attributes multitask         # idade/género/expressão com o modelo multitarefa
+    python -m src.main --attributes separate          # genderage + expressão (por omissão: multitarefa)
 
 Caminhos e limiares em src/config.py.
 

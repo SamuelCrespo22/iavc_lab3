@@ -15,12 +15,12 @@ Nota: a biblioteca scrfd redimensiona com interpolação nearest (o SCRFD origin
 bilinear), o que pode baixar um pouco o AP nas caras pequenas.
 
 Uso:
-  python -m src.evaluation.eval_detection_wider --detector scrfd.onnx --examples 6
+  python -m src.evaluation.eval_detection_wider --detector scrfd.onnx
   python -m src.evaluation.eval_detection_wider --detector det_10g.onnx
   --reuse: recalcula as métricas a partir das previsões guardadas, sem voltar a correr o detetor
   --compare: só refaz as tabelas de comparação a partir dos resultados já guardados
 
-Saídas: results/detection/<detetor>/  metrics.json, robustness.csv, predictions.npz, examples/
+Saídas: results/detection/<detetor>/  metrics.json, robustness.csv, predictions.npz
         results/detection/  comparison.csv, robustness_comparison.csv e comparison.md (todos os detetores)
 """
 import argparse
@@ -205,20 +205,7 @@ def operating_point(preds: dict, gt: dict) -> tuple[dict, list[dict]]:
     return summary, rows
 
 
-# ---------- saídas ----------
-def save_examples(preds: dict, gt: dict, n: int, out_dir: Path) -> None:
-    """n imagens aleatórias com 3+ caras: ground truth a verde, deteções (>= 0.4) a vermelho."""
-    out_dir.mkdir(parents=True, exist_ok=True)
-    candidates = sorted(k for k, g in gt.items() if (g["invalid"] == 0).sum() >= 3)
-    for key in np.random.default_rng(0).choice(candidates, n, replace=False):
-        img = cv.imread(str(IMAGES_DIR / f"{key}.jpg"))
-        for x, y, w, h in gt[key]["boxes"][gt[key]["invalid"] == 0].astype(int):
-            cv.rectangle(img, (x, y), (x + w, y + h), (0, 200, 0), 2)
-        for x, y, w, h, _ in preds[key][preds[key][:, 4] >= DETECTION_THRESHOLD].astype(int):
-            cv.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
-        cv.imwrite(str(out_dir / f"{key.replace('/', '__')}.jpg"), img)
-
-
+# ---------- comparação ----------
 def write_comparison() -> None:
     """Tabelas lado a lado de todos os detetores já avaliados. Só lê os resultados guardados."""
     runs = {p.parent.name: json.loads(p.read_text()) for p in sorted(OUT_ROOT.glob("*/metrics.json"))}
@@ -262,7 +249,6 @@ def write_comparison() -> None:
 def main():
     parser = argparse.ArgumentParser(description="Avaliação do detetor no WIDER Face (val).")
     parser.add_argument("--detector", default=DETECTOR_MODEL, help="modelo em models/")
-    parser.add_argument("--examples", type=int, default=0, help="guardar N imagens de exemplo")
     parser.add_argument("--reuse", action="store_true", help="usar as previsões já guardadas")
     parser.add_argument("--compare", action="store_true", help="só refazer as tabelas de comparação")
     args = parser.parse_args()
@@ -292,8 +278,6 @@ def main():
                             "note": "redimensionamento nearest (biblioteca scrfd)"}}
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=4))
     write_csv(out_dir / "robustness.csv", robustness)
-    if args.examples:
-        save_examples(preds, gt, args.examples, out_dir / "examples")
     write_comparison()
 
     print(f"\n{args.detector} | AP easy {ap['easy']:.4f} | medium {ap['medium']:.4f} | hard {ap['hard']:.4f}")

@@ -13,6 +13,7 @@ MODELS_DIR = ROOT_DIR / "models"      # pesos dos modelos
 DATA_DIR = ROOT_DIR / "data"          # datasets
 GALLERY_DIR = ROOT_DIR / "gallery"    # embeddings da galeria (dados biométricos)
 RESULTS_DIR = ROOT_DIR / "results"    # métricas e CSV das avaliações
+ATTRIBUTES_RESULTS_DIR = RESULTS_DIR / "attributes"  # uma pasta por opção (eval_attributes.py)
 
 # ---- Datasets ----
 UTKFACE_DIR = DATA_DIR / "UTKFace"
@@ -29,11 +30,13 @@ EMBEDDING_MODEL = MODELS_DIR / "w600k_r50.onnx"
 EXPRESSION_MODEL = MODELS_DIR / "expression" / "expression_best.onnx"
 EXPRESSION_CHECKPOINT = MODELS_DIR / "expression" / "expression_best.pth"
 MULTITASK_INPUT_SIZE = 112            # tamanho de entrada por omissão no treino (cada ONNX guarda o seu)
-MULTITASK_RUN = "mnet160"             # corrida do train_multitask.py usada pela aplicação e pela avaliação
+MULTITASK_RUN = "r50_224_full"             # corrida do train_multitask.py usada pela aplicação e pela avaliação
 MULTITASK_MODEL = MODELS_DIR / "multitask" / MULTITASK_RUN / "multitask.onnx"
 # Idade/género e expressão na aplicação: "separate" (genderage + MobileNet de expressão) ou "multitask"
 # (MULTITASK_MODEL). A identidade é sempre o ArcFace. Também se escolhe com --attributes.
-ATTRIBUTE_MODELS = "separate"
+ATTRIBUTE_MODELS = "multitask"
+
+IMAGENET_MEAN, IMAGENET_STD = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)  # normalização (RGB) de todos os modelos treinados aqui
 
 # ---- Limiares ----
 DETECTION_THRESHOLD = 0.4

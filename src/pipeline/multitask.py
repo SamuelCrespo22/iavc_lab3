@@ -1,6 +1,7 @@
 """
-Modelo multitarefa (train_multitask.py, exportado para ONNX): uma MobileNetV3-Small dá a expressão, o género
-e a idade a partir de um só crop (multitask_crop). Devolve os mesmos resultados que age_gender.py e expression.py.
+Modelo multitarefa (train_multitask.py, exportado para ONNX): um backbone (MobileNetV3-Small ou ResNet-50) dá a
+expressão, o género e a idade a partir de um só crop (multitask_crop). Devolve os mesmos resultados que
+age_gender.py e expression.py.
 """
 import cv2 as cv
 import numpy as np
@@ -8,11 +9,9 @@ import onnxruntime as ort
 
 from src.config import EXPRESSION_UNCERTAIN_BELOW, GENDER_UNCERTAIN_BELOW, onnx_providers
 from src.pipeline.age_gender import AgeGenderResult
-from src.pipeline.expression import CLASSES, ExpressionResult
+from src.pipeline.expression import CLASSES, IMAGENET_MEAN, IMAGENET_STD, ExpressionResult
 
 GENDERS = ["Male", "Female"]  # índice = label do UTKFace (0 = homem, 1 = mulher)
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
 def softmax(logits: np.ndarray) -> np.ndarray:

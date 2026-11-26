@@ -6,17 +6,13 @@ import torch.nn as nn
 from torchvision import models
 
 from src.pipeline.expression import CLASSES
-from src.pipeline.multitask import GENDERS
 
-TASKS = {  # tarefa -> (nº de saídas, loss)
+TASKS = {  # tarefa -> (nº de saídas, loss); a ordem é a das saídas do modelo e do ONNX
     "expression": (len(CLASSES), nn.CrossEntropyLoss()),
     "gender":     (2, nn.CrossEntropyLoss()),
     "age":        (1, nn.L1Loss()),  # alvo = idade / 10
 }
-
-
 ARCHS = ("mobilenet", "resnet18", "resnet50")
-RESNET_STAGES = ("conv1", "bn1", "layer1", "layer2", "layer3", "layer4")  # pela ordem da rede
 
 
 def build_backbone(arch: str, pretrained: bool) -> tuple[nn.Module, int]:
@@ -26,40 +22,23 @@ def build_backbone(arch: str, pretrained: bool) -> tuple[nn.Module, int]:
         backbone = models.mobilenet_v3_small(weights=weights)
         dim = backbone.classifier[3].in_features  # 1024
         backbone.classifier[3] = nn.Identity()
-    elif arch in ("resnet18", "resnet50"):
+    else:
         backbone = getattr(models, arch)(weights=weights)
         dim = backbone.fc.in_features  # 512 / 2048
         backbone.fc = nn.Identity()
-    else:
-        raise ValueError(f"Arquitetura desconhecida: {arch} (opções: {', '.join(ARCHS)})")
     return backbone, dim
 
 
 class MultiTaskNet(nn.Module):
-    def __init__(self, pretrained: bool = False, arch: str = "mobilenet", freeze_until: str | None = None):
-        """freeze_until (só ResNet): congela da entrada até esse bloco, inclusive ("layer4" = só as cabeças treinam)."""
+    def __init__(self, pretrained: bool = False, arch: str = "mobilenet"):
         super().__init__()
         self.backbone, dim = build_backbone(arch, pretrained)
         self.heads = nn.ModuleDict({t: nn.Linear(dim, n) for t, (n, _) in TASKS.items()})
-        self.frozen = []
-        if freeze_until:
-            if not arch.startswith("resnet"):
-                raise ValueError("freeze_until só existe para as ResNet")
-            stages = RESNET_STAGES[:RESNET_STAGES.index(freeze_until) + 1]
-            self.frozen = [getattr(self.backbone, s) for s in stages]
-            for module in self.frozen:
-                module.requires_grad_(False)
-
-    def train(self, mode: bool = True):
-        """A parte congelada fica sempre em eval: a BatchNorm não muda as médias com os dados novos."""
-        super().train(mode)
-        for module in self.frozen:
-            module.eval()
-        return self
 
     def forward(self, x):
+        """Uma saída por tarefa, pela ordem de TASKS (em tuplo, como o ONNX precisa)."""
         features = self.backbone(x)
-        return {t: head(features) for t, head in self.heads.items()}
+        return tuple(head(features) for head in self.heads.values())
 
 
 def task_loss(task, out, y):
@@ -71,12 +50,12 @@ def task_loss(task, out, y):
 
 def multitask_loss(outputs, labels, weights):
     """
-    labels[t] = -1 nas amostras sem label dessa tarefa (o AffectNet não tem idade, o UTKFace não tem expressão).
-    Devolve 0.0 (não um tensor) se o batch não tiver nenhuma label.
+    outputs: saídas do modelo (pela ordem de TASKS). labels[t] = -1 nas amostras sem label dessa tarefa
+    (o AffectNet não tem idade, o UTKFace não tem expressão). Devolve 0.0 (não um tensor) se o batch não tiver labels.
     """
     total = 0.0
-    for t, y in labels.items():
-        mask = y >= 0
+    for t, out in zip(TASKS, outputs):
+        mask = labels[t] >= 0
         if mask.any():
-            total = total + weights[t] * task_loss(t, outputs[t][mask], y[mask])
+            total = total + weights[t] * task_loss(t, out[mask], labels[t][mask])
     return total

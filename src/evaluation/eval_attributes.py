@@ -2,7 +2,7 @@
 Avaliação de uma opção de modelos de atributos (expressão, idade e género), sempre pelo ONNX, como na aplicação.
 
   --model separate   pipeline atual: genderage (96 px) + MobileNetV3 de expressão (224 px)
-  --model <corrida>  modelo multitarefa em models/multitask/<corrida>/ (mnet160, r50_224_l4, ...)
+  --model <corrida>  modelo multitarefa em models/multitask/<corrida>/ (mnet160, r50_224_full, ...)
 
   Expressão     AffectNet test (8 classes) e BTFER (7 classes comuns, cross-dataset): imagens redimensionadas.
   Idade/género  teste do UTKFace (15%, prepare_multitask.py) pelo caminho da aplicação: SCRFD na imagem com
@@ -27,15 +27,13 @@ import numpy as np
 from sklearn.metrics import (accuracy_score, balanced_accuracy_score, classification_report, confusion_matrix,
                              precision_recall_fscore_support)
 
-from src.config import AGE_GENDER_MODEL, BTFER_DIR, DATA_DIR, MODELS_DIR, MULTITASK_DATA_DIR, RESULTS_DIR
+from src.config import AGE_GENDER_MODEL, ATTRIBUTES_RESULTS_DIR, BTFER_DIR, DATA_DIR, MODELS_DIR, MULTITASK_DATA_DIR
 from src.evaluation.tables import write_csv
 from src.pipeline.age_gender import AgeGenderEstimator
 from src.pipeline.detection import attribute_crop, expression_crop, largest_face, load_detector, multitask_crop
-from src.pipeline.expression import CLASSES, ExpressionEstimator
+from src.pipeline.expression import BTFER_CLASSES, CLASSES, ExpressionEstimator
 from src.pipeline.multitask import GENDERS, MultiTaskEstimator
 
-OUT_ROOT = RESULTS_DIR / "attributes"
-COMMON = [c for c in CLASSES if c != "Contempt"]  # o BTFER não tem Contempt
 BTFER_NAMES = {"Angry": "Anger"}                  # pasta do BTFER -> nome em CLASSES
 RACES = ["White", "Black", "Asian", "Indian", "Others"]  # 3.º campo do nome do ficheiro do UTKFace
 PADDING = 0.5  # o UTKFace vem recortado à cara: o SCRFD precisa de borda (com 0.25 falha ~30% das caras)
@@ -153,7 +151,7 @@ def main():
     args = parser.parse_args()
 
     option = Separate() if args.model == "separate" else MultiTask(args.model)
-    out_dir = OUT_ROOT / args.model
+    out_dir = ATTRIBUTES_RESULTS_DIR / args.model
     out_dir.mkdir(parents=True, exist_ok=True)
     with open(MULTITASK_DATA_DIR / "labels.csv") as f:
         test = [r for r in csv.DictReader(f) if r["split"] == "test"]
@@ -165,7 +163,7 @@ def main():
     print("BTFER...", flush=True)
     btfer = [(p, BTFER_NAMES.get(folder.name, folder.name))
              for folder in sorted(d for d in BTFER_DIR.iterdir() if d.is_dir()) for p in sorted(folder.iterdir())]
-    metrics["btfer"] = eval_expression(option, btfer, COMMON, out_dir / "btfer_confusion.csv")
+    metrics["btfer"] = eval_expression(option, btfer, BTFER_CLASSES, out_dir / "btfer_confusion.csv")
     print("UTKFace test...", flush=True)
     metrics["utkface"], (img, face) = eval_utkface(option, [r for r in test if r["source"] == "utkface"], out_dir)
     metrics["latency_ms"] = latency_ms(lambda: option.analyse(img, face))

@@ -32,15 +32,14 @@ Saídas (results/ está no .gitignore):
   results/identity/metrics.json         resumo, com 1 e 2 fotos de registo
   gallery/threshold.json                threshold calibrado, usado pela aplicação
 """
-import csv
 import json
 import re
 from dataclasses import dataclass, asdict
-from pathlib import Path
 
 import numpy as np
 
 from src.config import GALLERY_PHOTOS_DIR, RESULTS_DIR, ROOT_DIR
+from src.evaluation.tables import write_csv
 from src.pipeline.detection import load_detector
 from src.pipeline.identity import Gallery, FaceEmbedder, embed_image, save_threshold
 
@@ -134,41 +133,27 @@ def score_probes(photos: list[Photo], enrol_stems: tuple[str, ...]) -> list[Scor
 def rates(rows: list[ScoreRow], split: str, threshold: float) -> dict:
     genuine = [r for r in rows if r.scenario == "genuine" and r.split == split]
     impostor = [r for r in rows if r.scenario == "impostor" and r.split == split]
-    accepted = [r for r in genuine if r.best_score > threshold]
-    return {
-        "n_genuine": len(genuine),
-        "n_impostor": len(impostor),
-        "rank1": float(np.mean([r.rank1_correct for r in genuine])) if genuine else float("nan"),
-        "dir": sum(r.rank1_correct for r in accepted) / len(genuine) if genuine else float("nan"),
-        "frr": 1 - len(accepted) / len(genuine) if genuine else float("nan"),
-        "misid": sum(not r.rank1_correct for r in accepted) / len(genuine) if genuine else float("nan"),
-        "far": float(np.mean([r.best_score > threshold for r in impostor])) if impostor else float("nan"),
-    }
+    accepted = [r.best_score > threshold for r in genuine]
+    mean = lambda values: float(np.mean(values)) if values else float("nan")
+    return {"n_genuine": len(genuine), "n_impostor": len(impostor),
+            "rank1": mean([r.rank1_correct for r in genuine]),
+            "dir": mean([a and r.rank1_correct for r, a in zip(genuine, accepted)]),
+            "frr": mean([not a for a in accepted]),
+            "misid": mean([a and not r.rank1_correct for r, a in zip(genuine, accepted)]),
+            "far": mean([r.best_score > threshold for r in impostor])}
 
 
 def calibrate_threshold(rows: list[ScoreRow]) -> float:
     """FAR = 0 na validação: o menor threshold que rejeita todos os impostores de validação."""
-    impostor_val = [r.best_score for r in rows if r.scenario == "impostor" and r.split == "val"]
-    return float(max(impostor_val))
+    return float(max(r.best_score for r in rows if r.scenario == "impostor" and r.split == "val"))
 
 
 def run_protocol(photos: list[Photo], enrol_stems: tuple[str, ...]) -> tuple[list[ScoreRow], float, dict]:
     rows = score_probes(photos, enrol_stems)
     threshold = calibrate_threshold(rows)
-    summary = {
-        "enrol_images": list(enrol_stems),
-        "threshold": threshold,
-        "val": rates(rows, "val", threshold),
-        "test": rates(rows, "test", threshold),
-    }
+    summary = {"enrol_images": list(enrol_stems), "threshold": threshold,
+               "val": rates(rows, "val", threshold), "test": rates(rows, "test", threshold)}
     return rows, threshold, summary
-
-
-def write_csv(path: Path, rows: list[dict]) -> None:
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
 
 
 def main():

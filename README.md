@@ -6,7 +6,7 @@ Aplicação local, em Python, que processa o stream da webcam do portátil e faz
 
 1. **Deteção de caras** — bounding box, confiança e 5 landmarks faciais (SCRFD).
 2. **Alinhamento** — crop normalizado a partir dos landmarks (template ArcFace).
-3. **Estimação de atributos** — idade aparente, rótulo de género definido pelo dataset e expressão facial visível: com dois modelos separados (genderage + MobileNetV3 de expressão) ou com um modelo multitarefa.
+3. **Estimação de atributos** — idade aparente, rótulo de género definido pelo dataset e expressão facial visível: por omissão com um modelo multitarefa (ResNet-50); em alternativa, com dois modelos separados (genderage + MobileNetV3 de expressão).
 4. **Identificação em galeria fechada** (< 20 pessoas, com consentimento) — embeddings ArcFace + similaridade cosseno, com rejeição "Unknown".
 5. **Visualização e monitorização** — overlay em tempo real com FPS e latência.
 
@@ -15,8 +15,8 @@ O enunciado completo está em [assignment.pdf](assignment.pdf).
 ## Estado atual
 
 O estado detalhado está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
-- **Feito:** deteção, alinhamento, identidade, idade/género e expressão, todos avaliados; interface e monitorização; modelo multitarefa (MobileNetV3 a 112/160/224) treinado, avaliado e na app; tabelas de comparação em `results/detection/comparison.md` e `results/comparison/comparison.md`.
-- **Falta:** ResNet multitarefa (Colab) e escolha da opção de atributos da app, testes de sistema ao vivo, consentimento escrito, relatório e vídeo.
+- **Feito:** deteção, alinhamento, identidade, idade/género e expressão, todos avaliados; interface e monitorização; modelo multitarefa (MobileNetV3 a 112/160/224 e ResNet-50 a 224) treinado e avaliado, com a ResNet-50 na app; tabelas de comparação em `results/detection/comparison.md` e `results/comparison/comparison.md`.
+- **Falta:** testes de sistema ao vivo, consentimento escrito, relatório e vídeo.
 
 ## Estrutura do repositório
 
@@ -24,6 +24,7 @@ O estado detalhado está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
 .
 ├── src/
 │   ├── main.py                  # Aplicação: webcam/vídeo, análise, overlay, teclas
+│   ├── enrol.py                 # Registo da galeria a partir de fotos
 │   ├── config.py                # Caminhos, modelos e limiares
 │   ├── pipeline/                # Módulos da aplicação
 │   │   ├── capture.py           #   webcam ou ficheiro de vídeo
@@ -34,9 +35,6 @@ O estado detalhado está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
 │   │   ├── expression.py        #   expressão facial (MobileNetV3, AffectNet)
 │   │   ├── multitask.py         #   idade, género e expressão com o modelo multitarefa
 │   │   └── monitoring.py        #   FPS, latência, CPU e memória
-│   ├── tools/
-│   │   ├── enrol.py             #   gerir a galeria a partir de fotos
-│   │   └── export_expression_onnx.py  #   exportar a expressão para ONNX
 │   ├── evaluation/              # Avaliação de cada componente
 │   │   ├── eval_detection_wider.py   # WIDER Face; --compare: tabelas dos detetores
 │   │   ├── eval_identity.py          # galeria: rank-1, FAR/FRR, threshold
@@ -89,7 +87,7 @@ Os pesos **não estão incluídos no repositório** (por tamanho e por termos de
 | `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade |
 | `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Não usados |
 | `expression/expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
-| `expression/expression_best.onnx` + `.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois, na mesma pasta) | Expressão na aplicação (`separate`). Gerados por `src/tools/export_expression_onnx.py`. |
+| `expression/expression_best.onnx` + `.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois, na mesma pasta) | Expressão na aplicação (`separate`). Gerados por `src/training/train_expression.py`. |
 | `multitask/<corrida>/` | Modelo multitarefa: `multitask.onnx` (+ `.data`), `multitask.pth`, `config.json`, `train.log` | Idade, género e expressão (`--attributes multitask`). Gerados por `src/training/train_multitask.py` |
 
 Os índices de saída do modelo de expressão seguem a ordem das pastas `0`–`7` do AffectNet usado no treino, que não é a ordem oficial do AffectNet. A ordem está em `CLASSES`, em `src/pipeline/expression.py`.
@@ -127,23 +125,22 @@ Todos os comandos correm **a partir da raiz do repositório**, com `python -m`:
 source .venv/bin/activate
 python -m src.main                                  # aplicação (webcam 0)
 python -m src.main --source 0 --source video.mp4    # 's' alterna entre as fontes
-python -m src.main --attributes multitask           # idade/género/expressão com o modelo multitarefa (MULTITASK_RUN)
+python -m src.main --attributes separate            # genderage + MobileNet de expressão (por omissão: multitask, MULTITASK_RUN)
 
-python -m src.tools.enrol --all data/dados_caras --images frontal frontal2   # registar a galeria
-python -m src.tools.enrol --list | --remove NOME | --clear
+python -m src.enrol --all data/dados_caras --images frontal frontal2   # registar a galeria
+python -m src.enrol --list | --clear
 
-python -m src.evaluation.eval_detection_wider --detector scrfd.onnx --examples 6   # results/detection/
+python -m src.evaluation.eval_detection_wider --detector scrfd.onnx   # results/detection/ (--compare: tabelas)
 python -m src.evaluation.eval_identity              # resultados em results/identity/
 python -m src.evaluation.eval_attributes --model separate   # pipeline atual -> results/attributes/separate/
 python -m src.evaluation.eval_attributes --model mnet160    # uma corrida multitarefa -> results/attributes/mnet160/
 python -m src.evaluation.compare_models             # todas as opções -> results/comparison/comparison.md
 
-python -m src.training.train_expression             # checkpoint e métricas do treino em models/expression/
-python -m src.tools.export_expression_onnx          # .pth -> .onnx (+ .onnx.data), com verificação
+python -m src.training.train_expression             # models/expression/: .pth e .onnx (+ .onnx.data), verificado
 
 python -m src.training.prepare_multitask            # uma vez: data/multitask/labels.csv
 python -m src.training.train_multitask --run mnet160 --input-size 160                          # MobileNetV3
-python -m src.training.train_multitask --run r50_224_l4 --arch resnet50 --input-size 224 --freeze-until layer3
+python -m src.training.train_multitask --run r50_224_full --arch resnet50 --input-size 224   # ResNet-50 (na app)
 ```
 
 As ResNet treinam-se numa GPU do Colab com [colab/train_multitask.ipynb](colab/train_multitask.ipynb) (instruções no próprio notebook); a pasta da corrida volta depois para `models/multitask/`.
@@ -161,7 +158,8 @@ No macOS, na primeira execução, é preciso dar permissão de acesso à câmara
 - Os nomes ao registar/apagar pessoas escrevem-se no terminal; enquanto isso, a janela fica parada.
 - A utilização da GPU não é medida; o painel mostra só a CPU e a memória do processo.
 - Pipeline `separate`: idade com MAE de ~10 anos no UTKFace e tendência para a média; género pior em crianças, idosos e no grupo Asian; expressão com 54% no AffectNet (8 classes) e 64% no BTFER (7 classes), Fear a pior no BTFER.
-- Multitarefa: melhor na idade (MAE ~6) e no género (~91%), mas avaliado no mesmo dataset em que treinou (UTKFace); na expressão fica abaixo do `separate` (o `mnet160`, 2–3 pontos). Números em `results/comparison/comparison.md`.
+- Multitarefa: melhor na idade (MAE 5.4–6.3) e no género (90–92%), mas avaliado no mesmo dataset em que treinou (UTKFace); no AffectNet fica 2–5 pontos abaixo do `separate` (a ResNet-50 em 3), no BTFER a ResNet-50 é a melhor. Contempt fraco a 224 (23%). Números em `results/comparison/comparison.md`.
+- Latência: o CoreML não suporta parte das operações da MobileNetV3 (hard-swish, squeeze-excitation) e parte-a em ~20 blocos, ficando mais lenta do que no CPU (mnet160: 4.8 vs 1.3 ms); a ResNet-50 corre quase toda no CoreML (1.8 ms) mas seria ~15× mais lenta só com CPU (34 ms).
 - O threshold da identidade foi calibrado com só 4 pessoas e 10 casos de impostor na validação (ver MILESTONES.md).
 
 ## Considerações éticas

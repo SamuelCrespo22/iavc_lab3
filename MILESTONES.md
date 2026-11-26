@@ -9,14 +9,14 @@ Entrega: **29 de novembro de 2026**.
 | M3 | Galeria de identidades | Samuel | 🟢 Avaliada; falta o consentimento escrito e fotos com outra iluminação |
 | M4 | Interface, desempenho e testes de sistema | Ambos | 🟡 Interface e monitorização feitas; faltam os testes 6.2, `d`/`x` ao vivo e uma sessão longa |
 | M5 | Relatório, vídeo e entrega | Ambos | 🔴 Por começar |
-| M6 | Modelo multitarefa (extra) | Samuel | 🟡 MobileNetV3 a 112/160/224 treinadas, avaliadas e na app; ResNet no Colab |
+| M6 | Modelo multitarefa (extra) | Samuel | 🟢 MobileNetV3 a 112/160/224 e ResNet-50 avaliadas; ResNet-50 na app |
 
 ## Plano até à entrega
 
 | Dia | O quê | Estado |
 |---|---|---|
-| **26 nov** | Testes ao vivo na aula; modelo multitarefa | Multitarefa feito (M6) e avaliação reorganizada. Os testes ao vivo (6.2, desconhecido, `d`/`x`, sessão longa, vídeo) ainda não estão registados |
-| **27 nov** | Avaliar as ResNet do Colab e escolher a opção de atributos da app; testes ao vivo que faltem; **relatório** | |
+| **26 nov** | Testes ao vivo na aula; modelo multitarefa | Multitarefa feito (M6), ResNet-50 avaliada e escolhida para a app. Os testes ao vivo (6.2, desconhecido, `d`/`x`, sessão longa, vídeo) ainda não estão registados |
+| **27 nov** | Testes ao vivo que faltem (com a ResNet-50); **relatório** | |
 | **28 nov** | Revisão final em conjunto; vídeo de demonstração | |
 | **29 nov** | Entrega | |
 
@@ -24,7 +24,7 @@ Entrega: **29 de novembro de 2026**.
 
 **Em aberto**
 - **Relatório por começar** (o maior risco). As tabelas estão prontas em `results/detection/comparison.md` e `results/comparison/comparison.md`.
-- **Opção de atributos da app:** `separate` (genderage + expressão) por omissão; `--attributes multitask` usa o `mnet160`. Decidir a 27 com as ResNet (ver M6).
+- **Opção de atributos da app:** decidida a 26 nov: multitarefa `r50_224_full` por omissão (`--attributes separate` para a alternativa). Falta testá-la ao vivo (ver M6).
 - **Lacunas face ao enunciado (6.1):** idade por condição da imagem (o UTKFace não tem estas labels: degradar imagens ou assumir como limitação); identidade sem fotos com outra iluminação e com amostra pequena (13 genuínos e 13 impostores no teste); sessão longa com todos os módulos; GPU não medida (CoreML).
 - **Threshold da identidade (0.193) encostado aos impostores:** é o score mais alto dos 10 impostores de validação (FAR = 0). Genuínos entre 0.63 e 0.93, impostores entre 0.01 e 0.19: qualquer valor entre 0.19 e 0.63 dava o mesmo. Testar com um desconhecido ao vivo e discutir no relatório.
 - **Ordem das classes da expressão (resolvido; explicar no relatório):** as pastas `0`–`7` do AffectNetCustom são `Anger, Disgust, Fear, Happy, Sad, Surprise, Neutral, Contempt`, não a ordem oficial (0 = Neutral). Detetado pelo BTFER a 7.3% e pela `surpresa.jpeg` a sair "Disgust"; `CLASSES` em `expression.py` é a única fonte da ordem. Falta saber com a Luciana de onde vem esta numeração.
@@ -83,14 +83,18 @@ Um backbone do ImageNet partilhado pela expressão, género e idade, com uma cab
 
 | Opção | AffectNet | BTFER | Idade MAE | Género | ms/cara |
 |---|---|---|---|---|---|
-| separate (atual) | **54.0%** | **63.7%** | 10.06 | 85.8% | 11.7 |
-| mnet112 | 49.5% | 55.8% | 6.31 | 89.8% | **5.0** |
-| mnet160 (na app com `--attributes multitask`) | 52.3% | 61.0% | 6.03 | 90.6% | 6.7 |
-| mnet224 | 50.3% | 63.5% | **5.59** | **92.0%** | 9.3 |
+| separate | **54.0%** | 63.7% | 10.06 | 85.8% | 11.7 |
+| mnet112 | 49.5% | 55.8% | 6.31 | 89.8% | 5.0 |
+| mnet160 | 52.3% | 61.0% | 6.03 | 90.6% | 6.7 |
+| mnet224 | 50.3% | 63.5% | 5.59 | **92.0%** | 9.3 |
+| r50_224_full (**na app**) | 51.1% | **67.8%** | **5.44** | 91.0% | **2.9** |
 
 Idade e género no teste do UTKFace (3 554 caras): os multitarefa treinaram no mesmo dataset e o genderage não, o que tem de ser dito no relatório.
 
 - **Resolução:** a expressão melhora de 112 para 160; a 224 o BTFER (256 px nativos) sobe mas o AffectNet (112 px nativos) desce, sobretudo no Contempt (recall 23%).
 - **Paragem:** a melhor época é escolhida pela soma das losses de validação, dominada pela expressão. No `mnet224` o F1 da expressão continuou a subir depois da época escolhida (a loss subiu por excesso de confiança). Critério mantido; discutir no relatório.
-- [ ] ResNet no Colab (`colab/train_multitask.ipynb`): `r50_224_full`, `r50_224_l4` (congelada até `layer3`), opcional `r18_224_full`. Depois: `eval_attributes --model <corrida>` e `compare_models`.
-- [ ] Escolher a opção de atributos da app (27 nov)
+- **ResNet-50** (`r50_224_full`, Colab, sem camadas congeladas): melhor na idade e no BTFER, empata no género, 3 pontos abaixo do `separate` no AffectNet. Sobreajusta cedo: melhor época 4 de 8 (loss de treino 1.65 → 0.99, validação a subir); 23.5 M parâmetros para ~54 mil imagens.
+- **Latência e CoreML:** a coluna ms/cara é o tempo real neste M1, não o custo do modelo. O CoreML corre a ResNet-50 quase inteira (1.8 ms; 34 ms só com CPU) e parte a MobileNetV3 em ~20 blocos (hard-swish e squeeze-excitation não suportados), que fica mais lenta do que no CPU (mnet160 4.8 vs 1.3 ms; mnet224 8.0 vs 2.2 ms). Pôr as duas colunas no relatório.
+- [x] ResNet-50 no Colab (`colab/train_multitask.ipynb`), avaliada (`r50_224_full`)
+- [x] Opção de atributos da app: `r50_224_full` (`ATTRIBUTE_MODELS = "multitask"`)
+- [ ] Testar a ResNet-50 ao vivo (FPS e labels)
