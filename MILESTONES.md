@@ -7,7 +7,7 @@ Entrega: **29 de novembro de 2026**.
 | M1 | Pipeline base + avaliação do detetor | Samuel | 🟢 Feito, com comparação 2.5GF vs 10GF; falta a secção do relatório |
 | M2 | Idade/género e expressão | Luciana | 🟢 Avaliados e integrados; falta a idade por condição da imagem |
 | M3 | Galeria de identidades | Samuel | 🟢 Avaliada; falta o consentimento escrito e fotos com outra iluminação |
-| M4 | Interface, desempenho e testes de sistema | Ambos | 🟡 Interface e monitorização feitas; faltam os testes 6.2, `d`/`x` ao vivo e uma sessão longa |
+| M4 | Interface, desempenho e testes de sistema | Ambos | 🟡 Interface e monitorização feitas; sessão de ~3 min com a ResNet-50 registada; faltam os testes 6.2 e `d`/`x` ao vivo |
 | M5 | Relatório, vídeo e entrega | Ambos | 🔴 Por começar |
 | M6 | Modelo multitarefa (extra) | Samuel | 🟢 MobileNetV3 a 112/160/224 e ResNet-50 avaliadas; ResNet-50 na app |
 
@@ -15,8 +15,8 @@ Entrega: **29 de novembro de 2026**.
 
 | Dia | O quê | Estado |
 |---|---|---|
-| **26 nov** | Testes ao vivo na aula; modelo multitarefa | Multitarefa feito (M6), ResNet-50 avaliada e escolhida para a app. Os testes ao vivo (6.2, desconhecido, `d`/`x`, sessão longa, vídeo) ainda não estão registados |
-| **27 nov** | Testes ao vivo que faltem (com a ResNet-50); **relatório** | |
+| **26 nov** | Testes ao vivo na aula; modelo multitarefa | Multitarefa feito (M6), ResNet-50 avaliada, escolhida para a app e testada ao vivo (22.7 FPS). Faltam os testes 6.2, desconhecido, `d`/`x` e o vídeo |
+| **27 nov** | Testes ao vivo que faltem; **relatório** | |
 | **28 nov** | Revisão final em conjunto; vídeo de demonstração | |
 | **29 nov** | Entrega | |
 
@@ -25,7 +25,7 @@ Entrega: **29 de novembro de 2026**.
 **Em aberto**
 - **Relatório por começar** (o maior risco). As tabelas estão prontas em `results/detection/comparison.md` e `results/comparison/comparison.md`.
 - **Opção de atributos da app:** decidida a 26 nov: multitarefa `r50_224_full` por omissão (`--attributes separate` para a alternativa). Falta testá-la ao vivo (ver M6).
-- **Lacunas face ao enunciado (6.1):** idade por condição da imagem (o UTKFace não tem estas labels: degradar imagens ou assumir como limitação); identidade sem fotos com outra iluminação e com amostra pequena (13 genuínos e 13 impostores no teste); sessão longa com todos os módulos; GPU não medida (CoreML).
+- **Lacunas face ao enunciado (6.1):** idade por condição da imagem (o UTKFace não tem estas labels: degradar imagens ou assumir como limitação); identidade sem fotos com outra iluminação e com amostra pequena (13 genuínos e 13 impostores no teste); GPU não medida (CoreML).
 - **Threshold da identidade (0.193) encostado aos impostores:** é o score mais alto dos 10 impostores de validação (FAR = 0). Genuínos entre 0.63 e 0.93, impostores entre 0.01 e 0.19: qualquer valor entre 0.19 e 0.63 dava o mesmo. Testar com um desconhecido ao vivo e discutir no relatório.
 - **Ordem das classes da expressão (resolvido; explicar no relatório):** as pastas `0`–`7` do AffectNetCustom são `Anger, Disgust, Fear, Happy, Sad, Surprise, Neutral, Contempt`, não a ordem oficial (0 = Neutral). Detetado pelo BTFER a 7.3% e pela `surpresa.jpeg` a sair "Disgust"; `CLASSES` em `expression.py` é a única fonte da ordem. Falta saber com a Luciana de onde vem esta numeração.
 - **Luciana, depois do pull:** passar `expression_best.*` (os três ficheiros, juntos) para `models/expression/`.
@@ -63,9 +63,11 @@ Entrega: **29 de novembro de 2026**.
 - [x] Overlay: identidade (verde/vermelho), idade, género e expressão, confiança da deteção; caras < 40 px não analisadas
 - [x] `monitoring.py`: FPS, latência por fase, CPU e memória; CSV por sessão em `results/system/`
 - [x] Sessões a 25 nov: sem expressão ~26 FPS (16–17 ms); com expressão 13–17 FPS (24–31 ms), sessão curta
+- [x] Sessões com todos os módulos (`results/system/`): `separate` a 26 nov às 11h20 (4 638 frames) com 13.4 FPS e 31.1 ms por frame (deteção 14.7, expressão 10.8, idade/género 0.9, identidade 4.4); ResNet-50 a 26 nov às 22h46 (3 782 frames, ~3 min) com **22.7 FPS** e 21.1 ms (deteção 13.6, multitarefa 3.2, identidade 3.9), CPU 160% e 481 MB. A deteção passa a ser 65% do tempo. Expressões ao vivo aceitáveis, não perfeitas.
 - [x] Testados ao vivo: pausa, registo (`e`), fechar a janela
 - [ ] Testes 6.2: uma e várias pessoas, entrar/sair, pose/distância/luz, duas pessoas registadas, pessoa não registada
-- [ ] `d` e `x` ao vivo; sessão longa com todos os módulos (e com `--attributes multitask`)
+- [ ] `d` e `x` ao vivo
+- Nas sessões gravadas a partir das 23h de 26 nov, a latência "total" é só a análise (antes incluía o desenho das caixas, < 1 ms)
 
 ## M5 — Relatório, vídeo e entrega
 
@@ -97,4 +99,4 @@ Idade e género no teste do UTKFace (3 554 caras): os multitarefa treinaram no m
 - **Latência e CoreML:** a coluna ms/cara é o tempo real neste M1, não o custo do modelo. O CoreML corre a ResNet-50 quase inteira (1.8 ms; 34 ms só com CPU) e parte a MobileNetV3 em ~20 blocos (hard-swish e squeeze-excitation não suportados), que fica mais lenta do que no CPU (mnet160 4.8 vs 1.3 ms; mnet224 8.0 vs 2.2 ms). Pôr as duas colunas no relatório.
 - [x] ResNet-50 no Colab (`colab/train_multitask.ipynb`), avaliada (`r50_224_full`)
 - [x] Opção de atributos da app: `r50_224_full` (`ATTRIBUTE_MODELS = "multitask"`)
-- [ ] Testar a ResNet-50 ao vivo (FPS e labels)
+- [x] ResNet-50 testada ao vivo: 22.7 FPS contra 13.4 do `separate` (ver M4)

@@ -77,12 +77,7 @@ class App:
             self.age_gender = AgeGenderEstimator()
             self.expression = ExpressionEstimator()
 
-        self.modules = {
-            "age_gender": True,
-            "expression": True,
-            "identity": True,
-            "landmarks": True
-        }
+        self.modules = {name: True for name, _ in MODULES.values()}
 
         # Câmara
         self.monitor = Monitor()
@@ -100,24 +95,26 @@ class App:
         for face in faces:
             p1, p2 = face.bbox.upper_left, face.bbox.lower_right
             r = FaceAnalysis(face, analysed=min(p2.x - p1.x, p2.y - p1.y) >= MIN_FACE_SIZE)
-            if r.analysed and self.modules["identity"]:
+            results.append(r)
+            if not r.analysed:
+                continue
+            if self.modules["identity"]:
                 with self.monitor.stage("identity"):
                     r.identity = self.gallery.match(self.embedder.embed(identity_crop(frame, face)))
-            if r.analysed and self.multitask is not None:
+            if self.multitask is not None:
                 if self.modules["age_gender"] or self.modules["expression"]:
                     with self.monitor.stage("multitask"):
                         crop = multitask_crop(frame, face, self.multitask.size)
                         age_gender, expression = self.multitask.predict(crop)
                     r.age_gender = age_gender if self.modules["age_gender"] else None
                     r.expression = expression if self.modules["expression"] else None
-            elif r.analysed:
+            else:
                 if self.modules["age_gender"]:
                     with self.monitor.stage("age_gender"):
                         r.age_gender = self.age_gender.predict(attribute_crop(frame, face))
                 if self.modules["expression"]:
                     with self.monitor.stage("expression"):
                         r.expression = self.expression.predict(expression_crop(frame, face))
-            results.append(r)
         return results
 
     # Desenho
@@ -183,12 +180,15 @@ class App:
 
     # ---------- câmara e fontes ----------
     def toggle_camera(self):
-        self.paused = not self.paused
         if self.paused:
+            try:
+                self.cap = open_source(self.sources[self.source_index])
+            except RuntimeError as e:  # ex.: webcam ocupada por outra aplicação
+                return self.notify(str(e))
+        else:
             self.cap.release()
             self.monitor.pause()
-        else:
-            self.cap = open_source(self.sources[self.source_index])
+        self.paused = not self.paused
 
     def next_source(self):
         if len(self.sources) == 1:
@@ -232,7 +232,7 @@ class App:
         embeddings = []
         for i in range(ENROL_FRAMES):
             frame = self.read_frame()
-            face = largest_face(self.detector, frame) if frame is not None else None
+            face = largest_face(self.detector, frame, self.args.det_threshold) if frame is not None else None
             if face is not None:
                 embeddings.append(self.embedder.embed(identity_crop(frame, face)))
                 put(frame, f"A registar {name}: {i + 1}/{ENROL_FRAMES}", (10, 30), YELLOW, 0.7, 2)
@@ -263,7 +263,7 @@ class App:
     # Ciclo principal
     def handle_key(self, key: int) -> bool:
         """Devolve False para sair."""
-        char = chr(key) if 0 <= key < 256 else ""
+        char = chr(key)
         if char == "q":
             return False
         actions = {" ": self.toggle_camera, "s": self.next_source, "e": self.enrol, "d": self.delete,
@@ -287,10 +287,11 @@ class App:
                     self.toggle_camera()
                     continue
                 self.last_frame = frame.copy()
-                with self.monitor.stage("total"):
-                    for r in self.analyse(frame):
-                        self.draw_face(frame, r)
+                with self.monitor.stage("total"):  # só a análise; o desenho fica de fora
+                    results = self.analyse(frame)
                 self.monitor.end_frame()
+                for r in results:
+                    self.draw_face(frame, r)
 
             self.draw_panel(frame)
             cv.imshow(WINDOW, frame)
@@ -309,11 +310,9 @@ class App:
 
 def main():
     parser = argparse.ArgumentParser(description="Análise facial em tempo real.")
-    parser.add_argument("--source", action="append",
-                        help="índice da webcam ou caminho de um vídeo")
+    parser.add_argument("--source", action="append", help="índice da webcam ou caminho de um vídeo")
     parser.add_argument("--detector", default=DETECTOR_MODEL, help="modelo SCRFD em models/")
-    parser.add_argument("--det-threshold", type=float, default=DETECTION_THRESHOLD,
-                        help="confiança mínima da deteção")
+    parser.add_argument("--det-threshold", type=float, default=DETECTION_THRESHOLD, help="confiança mínima")
     parser.add_argument("--attributes", choices=["separate", "multitask"], default=ATTRIBUTE_MODELS,
                         help="modelos de idade/género e expressão (ver ATTRIBUTE_MODELS em config.py)")
     App(parser.parse_args()).run()
