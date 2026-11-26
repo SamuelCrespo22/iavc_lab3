@@ -29,12 +29,12 @@ EXPRESSION_MODEL = MODELS_DIR / "expression_best.onnx"
 EXPRESSION_CHECKPOINT = MODELS_DIR / "expression_best.pth"
 
 # ---- Limiares ----
-DETECTION_THRESHOLD = 0.4             # confiança mínima de uma deteção
-MIN_FACE_SIZE = 40                    # px; caras mais pequenas não são analisadas
-GENDER_UNCERTAIN_BELOW = 0.65         # género marcado como incerto abaixo desta confiança
-EXPRESSION_UNCERTAIN_BELOW = 0.5      # expressão marcada como incerta abaixo desta confiança
+DETECTION_THRESHOLD = 0.4
+MIN_FACE_SIZE = 40
+GENDER_UNCERTAIN_BELOW = 0.65
+EXPRESSION_UNCERTAIN_BELOW = 0.5
 PROVISIONAL_IDENTITY_THRESHOLD = 0.35 # só até eval_identity calibrar (gallery/threshold.json)
-MAX_IDENTITIES = 19                   # o enunciado pede "fewer than 20"
+MAX_IDENTITIES = 19
 
 # ---- Câmara ----
 CAMERA_WIDTH, CAMERA_HEIGHT = 640, 480

@@ -13,7 +13,6 @@ def parse_source(source: str | int) -> int | str:
 def open_source(source: str | int = 0, width: int = CAMERA_WIDTH, height: int = CAMERA_HEIGHT) -> cv.VideoCapture:
     source = parse_source(source)
     if isinstance(source, int):
-        # AVFoundation só existe em macOS; nos outros sistemas o OpenCV escolhe o backend.
         backend = cv.CAP_AVFOUNDATION if sys.platform == "darwin" else cv.CAP_ANY
         cap = cv.VideoCapture(source, backend)
         cap.set(cv.CAP_PROP_FRAME_WIDTH, width)

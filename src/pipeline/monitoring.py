@@ -27,7 +27,7 @@ class Monitor:
         self.smoothing = smoothing      # peso da média móvel (mais alto = mais estável)
         self.fps = 0.0
         self.latency_ms: dict[str, float] = {}
-        self.cpu_percent = 0.0          # pode passar de 100% (vários núcleos)
+        self.cpu_percent = 0.0
         self.memory_mb = 0.0
 
         self._process = psutil.Process()

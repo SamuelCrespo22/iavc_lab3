@@ -24,7 +24,7 @@ def face_area(face: Face) -> float:
 
 def largest_face(detector: SCRFD, frame_bgr: np.ndarray,
                  probability: float = DETECTION_THRESHOLD) -> Face | None:
-    """A maior cara da imagem (assume-se que é a pessoa a registar/avaliar)."""
+    """A maior cara da imagem (pessoa a registar)."""
     faces = detect(detector, frame_bgr, probability)
     return max(faces, key=face_area) if faces else None
 

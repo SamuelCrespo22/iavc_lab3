@@ -82,7 +82,7 @@ Os pesos **não estão incluídos no repositório** (por tamanho e por termos de
 | `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade |
 | `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Não usados |
 | `expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
-| `expression_best.onnx` + `expression_best.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois) | Expressão na aplicação. Gerados por `src/tools/export_expression_onnx.py`. Sem eles, a expressão fica desligada. |
+| `expression_best.onnx` + `expression_best.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois) | Expressão na aplicação. Gerados por `src/tools/export_expression_onnx.py`.|
 
 Os índices de saída do modelo de expressão seguem a ordem das pastas `0`–`7` do AffectNet usado no treino, que não é a ordem oficial do AffectNet. A ordem está em `CLASSES`, em `src/pipeline/expression.py`.
 

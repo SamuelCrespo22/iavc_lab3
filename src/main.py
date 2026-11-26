@@ -19,8 +19,7 @@ import cv2 as cv
 import numpy as np
 from scrfd import Face
 
-from src.config import (AGE_GENDER_MODEL, DETECTION_THRESHOLD, DETECTOR_MODEL, EXPRESSION_MODEL,
-                        GENDER_UNCERTAIN_BELOW, MIN_FACE_SIZE)
+from src.config import (AGE_GENDER_MODEL, DETECTION_THRESHOLD, DETECTOR_MODEL, GENDER_UNCERTAIN_BELOW, MIN_FACE_SIZE)
 from src.pipeline.age_gender import AgeGenderEstimator, AgeGenderResult
 from src.pipeline.capture import open_source, parse_source
 from src.pipeline.detection import (attribute_crop, detect, expression_crop, identity_crop, largest_face,
@@ -46,7 +45,7 @@ HELP = ["espaco  parar/retomar camara", "s  fonte seguinte", "1-4  ligar/desliga
 @dataclass
 class FaceAnalysis:
     face: Face
-    analysed: bool                       # False se a cara for pequena demais
+    analysed: bool  # False -> cara demasiado pequena
     identity: IdentityResult | None = None
     age_gender: AgeGenderResult | None = None
     expression: ExpressionResult | None = None
@@ -63,16 +62,22 @@ class App:
         self.args = args
         self.sources = args.source or ["0"]
         self.source_index = 0
+
+        # Modelos
         self.detector = load_detector(args.detector)
         self.age_gender = AgeGenderEstimator(str(AGE_GENDER_MODEL), GENDER_UNCERTAIN_BELOW)
         self.embedder = FaceEmbedder()
         self.gallery = Gallery.load()
-        self.expression = ExpressionEstimator() if EXPRESSION_MODEL.exists() else None
-        if self.expression is None:
-            print(f"Aviso: {EXPRESSION_MODEL.name} não encontrado, expressão desligada.")
+        self.expression = ExpressionEstimator()
 
-        self.modules = {"age_gender": True, "expression": self.expression is not None,
-                        "identity": True, "landmarks": True}
+        self.modules = {
+            "age_gender": True,
+            "expression": True,
+            "identity": True,
+            "landmarks": True
+        }
+
+        # Câmara
         self.monitor = Monitor()
         self.cap = open_source(self.sources[0])
         self.paused = False
@@ -80,7 +85,7 @@ class App:
         self.last_frame = None
         self.message, self.message_until = "", 0.0
 
-    # ---------- análise ----------
+    # Análise
     def analyse(self, frame) -> list[FaceAnalysis]:
         with self.monitor.stage("detection"):
             faces = detect(self.detector, frame, self.args.det_threshold)
@@ -100,7 +105,7 @@ class App:
             results.append(r)
         return results
 
-    # ---------- desenho ----------
+    # Desenho
     def draw_face(self, frame, r: FaceAnalysis):
         p1, p2 = r.face.bbox.upper_left, r.face.bbox.lower_right
         x1, y1, x2, y2 = int(p1.x), int(p1.y), int(p2.x), int(p2.y)
@@ -113,9 +118,9 @@ class App:
                 cv.circle(frame, (int(kp["x"]), int(kp["y"])), 2, YELLOW, -1)
 
         if not r.analysed:
-            put(frame, "pequena demais", (x1, y2 + 16), GREY, 0.45)
+            put(frame, "cara demasiado pequena", (x1, y2 + 16), GREY, 0.45)
             return
-        if r.identity is not None:  # identidade em destaque, por cima da caixa
+        if r.identity is not None:
             score = "" if np.isnan(r.identity.score) else f" {r.identity.score:.2f}"
             put(frame, f"{r.identity.name}{score}", (x1, y1 - 8), color, 0.7, 2)
 
@@ -168,7 +173,7 @@ class App:
 
     def next_source(self):
         if len(self.sources) == 1:
-            return self.notify("Só há uma fonte (usar --source mais vezes).")
+            return self.notify("Só há uma fonte (usar --source).")
         new_index = (self.source_index + 1) % len(self.sources)
         try:
             new_cap = open_source(self.sources[new_index])
@@ -185,7 +190,7 @@ class App:
             ok, frame = self.cap.read()
         return frame if ok else None
 
-    # ---------- galeria (os nomes escrevem-se no terminal) ----------
+    # Galeria
     def ask(self, prompt: str) -> str:
         if self.last_frame is not None:
             frame = self.last_frame.copy()
@@ -236,7 +241,7 @@ class App:
             self.gallery.clear()
             self.notify("Galeria apagada.")
 
-    # ---------- ciclo principal ----------
+    # Ciclo principal
     def handle_key(self, key: int) -> bool:
         """Devolve False para sair."""
         char = chr(key) if 0 <= key < 256 else ""
@@ -247,11 +252,8 @@ class App:
         if char in actions:
             actions[char]()
         elif char in MODULES:
-            name, label = MODULES[char]
-            if name == "expression" and self.expression is None:
-                self.notify("Modelo de expressão não encontrado.")
-            else:
-                self.modules[name] = not self.modules[name]
+            name, _ = MODULES[char]
+            self.modules[name] = not self.modules[name]
         return True
 
     def run(self):
@@ -288,7 +290,7 @@ class App:
 def main():
     parser = argparse.ArgumentParser(description="Análise facial em tempo real.")
     parser.add_argument("--source", action="append",
-                        help="índice da webcam ou caminho de um vídeo (pode repetir-se)")
+                        help="índice da webcam ou caminho de um vídeo")
     parser.add_argument("--detector", default=DETECTOR_MODEL, help="modelo SCRFD em models/")
     parser.add_argument("--det-threshold", type=float, default=DETECTION_THRESHOLD,
                         help="confiança mínima da deteção")
