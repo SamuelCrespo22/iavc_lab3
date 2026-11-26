@@ -8,15 +8,10 @@ import numpy as np
 import onnxruntime as ort
 
 from src.config import EXPRESSION_UNCERTAIN_BELOW, GENDER_UNCERTAIN_BELOW, onnx_providers
-from src.pipeline.age_gender import AgeGenderResult
-from src.pipeline.expression import CLASSES, IMAGENET_MEAN, IMAGENET_STD, ExpressionResult
+from src.pipeline.age_gender import AgeGenderResult, age_gender_result
+from src.pipeline.expression import CLASSES, IMAGENET_MEAN, IMAGENET_STD, ExpressionResult, softmax
 
 GENDERS = ["Male", "Female"]  # índice = label do UTKFace (0 = homem, 1 = mulher)
-
-
-def softmax(logits: np.ndarray) -> np.ndarray:
-    e = np.exp(logits - logits.max())
-    return e / e.sum()
 
 
 class MultiTaskEstimator:
@@ -39,10 +34,6 @@ class MultiTaskEstimator:
         expression = ExpressionResult(CLASSES[best], float(expr[best]), dict(zip(CLASSES, expr.tolist())),
                                       float(expr[best]) < EXPRESSION_UNCERTAIN_BELOW)
 
-        gender = softmax(out["gender"])
-        g = int(gender.argmax())
-        age = int(np.clip(round(float(out["age"][0]) * 10), 0, 100))
-        uncertain = float(gender[g]) < self.gender_uncertain_below
-        age_gender = AgeGenderResult(age, f"{age // 10 * 10}-{age // 10 * 10 + 9}",
-                                     "Uncertain" if uncertain else GENDERS[g], round(float(gender[g]), 3), uncertain)
+        age_gender = age_gender_result(float(out["age"][0]) * 10, softmax(out["gender"]), GENDERS,
+                                       self.gender_uncertain_below)
         return age_gender, expression

@@ -27,7 +27,7 @@ import numpy as np
 from sklearn.metrics import (accuracy_score, balanced_accuracy_score, classification_report, confusion_matrix,
                              precision_recall_fscore_support)
 
-from src.config import AGE_GENDER_MODEL, ATTRIBUTES_RESULTS_DIR, BTFER_DIR, DATA_DIR, MODELS_DIR, MULTITASK_DATA_DIR
+from src.config import ATTRIBUTES_RESULTS_DIR, BTFER_DIR, DATA_DIR, MODELS_DIR, MULTITASK_DATA_DIR
 from src.evaluation.tables import write_csv
 from src.pipeline.age_gender import AgeGenderEstimator
 from src.pipeline.detection import attribute_crop, expression_crop, largest_face, load_detector, multitask_crop
@@ -43,7 +43,7 @@ class Separate:
     """Pipeline atual: genderage + MobileNetV3 de expressão, cada um com o seu crop."""
 
     def __init__(self):
-        self.age_gender = AgeGenderEstimator(str(AGE_GENDER_MODEL), confidence_threshold=0.0)
+        self.age_gender = AgeGenderEstimator(confidence_threshold=0.0)
         self.expression = ExpressionEstimator()
 
     def expression_of(self, image):

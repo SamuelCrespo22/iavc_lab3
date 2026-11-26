@@ -17,6 +17,11 @@ BTFER_CLASSES = [c for c in CLASSES if c != "Contempt"]  # as 7 comuns ao BTFER 
 IMAGENET_MEAN, IMAGENET_STD = np.float32(IMAGENET_MEAN), np.float32(IMAGENET_STD)
 
 
+def softmax(logits: np.ndarray) -> np.ndarray:
+    e = np.exp(logits - logits.max())
+    return e / e.sum()
+
+
 @dataclass
 class ExpressionResult:
     label: str
@@ -37,10 +42,7 @@ class ExpressionEstimator:
         img = (img - IMAGENET_MEAN) / IMAGENET_STD
         blob = np.transpose(img, (2, 0, 1))[np.newaxis].astype(np.float32)
 
-        logits = self.session.run(None, {self.input_name: blob})[0][0]
-        probs = np.exp(logits - logits.max())
-        probs /= probs.sum()
-
+        probs = softmax(self.session.run(None, {self.input_name: blob})[0][0])
         best = int(np.argmax(probs))
         confidence = float(probs[best])
         return ExpressionResult(CLASSES[best], confidence, dict(zip(CLASSES, probs.tolist())),

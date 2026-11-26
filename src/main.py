@@ -20,8 +20,8 @@ import cv2 as cv
 import numpy as np
 from scrfd import Face
 
-from src.config import (AGE_GENDER_MODEL, ATTRIBUTE_MODELS, DETECTION_THRESHOLD, DETECTOR_MODEL,
-                        GENDER_UNCERTAIN_BELOW, MIN_FACE_SIZE, MULTITASK_MODEL, MULTITASK_RUN)
+from src.config import (ATTRIBUTE_MODELS, DETECTION_THRESHOLD, DETECTOR_MODEL, MIN_FACE_SIZE, MULTITASK_MODEL,
+                        MULTITASK_RUN)
 from src.pipeline.age_gender import AgeGenderEstimator, AgeGenderResult
 from src.pipeline.capture import open_source, parse_source
 from src.pipeline.detection import (attribute_crop, detect, expression_crop, identity_crop, largest_face,
@@ -74,7 +74,7 @@ class App:
             self.multitask = MultiTaskEstimator(MULTITASK_MODEL)
         else:
             self.multitask = None
-            self.age_gender = AgeGenderEstimator(str(AGE_GENDER_MODEL), GENDER_UNCERTAIN_BELOW)
+            self.age_gender = AgeGenderEstimator()
             self.expression = ExpressionEstimator()
 
         self.modules = {

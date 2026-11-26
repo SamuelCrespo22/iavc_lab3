@@ -1,3 +1,7 @@
+"""
+Alinhamento por semelhança (rotação, escala uniforme e translação): leva os 5 landmarks do SCRFD para as
+posições do template ArcFace. Usado pela identidade (112x112) e pela expressão (224x224 com margem).
+"""
 import cv2 as cv
 import numpy as np
 
@@ -24,7 +28,7 @@ def align_face(frame: np.ndarray, kps: np.ndarray, size: int = 112,
     """
     frame: imagem original (BGR), kps: (5,2) em coordenadas da imagem.
     size: lado do crop de saída. margin: >0 afasta a cara das bordas
-    (ex.: 0.2 inclui mais cabelo/queixo, útil para idade/expressão).
+    (ex.: 0.2 inclui mais cabelo e queixo, usado na expressão).
     """
     dst = ARCFACE_TEMPLATE * (size / 112.0)
     if margin > 0:

@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 from scrfd import SCRFD, Face, Threshold
 
-from src.config import DETECTION_THRESHOLD, DETECTOR_MODEL, MODELS_DIR, MULTITASK_INPUT_SIZE, onnx_providers
+from src.config import DETECTION_THRESHOLD, DETECTOR_MODEL, MODELS_DIR, onnx_providers
 from src.pipeline.alignment import align_face, keypoints_to_array
 
 
@@ -37,7 +37,7 @@ def identity_crop(frame_bgr: np.ndarray, face: Face) -> np.ndarray:
 def attribute_crop(frame_bgr: np.ndarray, face: Face, size: int = 96, scale: float = 1.5) -> np.ndarray:
     """
     Crop esperado pelo genderage.onnx do InsightFace: centrado na bounding box,
-    lado = 1.5x o maior lado da cara, sem rotação, redimensionado para 96x96.
+    lado = 1.5x o maior lado da cara, sem rotação, redimensionado para size x size.
     """
     p1, p2 = face.bbox.upper_left, face.bbox.lower_right
     cx, cy = (p1.x + p2.x) / 2, (p1.y + p2.y) / 2
@@ -52,7 +52,7 @@ def expression_crop(frame_bgr: np.ndarray, face: Face) -> np.ndarray:
     return align_face(frame_bgr, keypoints_to_array(face), size=224, margin=0.2)
 
 
-def multitask_crop(frame_bgr: np.ndarray, face: Face, size: int = MULTITASK_INPUT_SIZE) -> np.ndarray:
+def multitask_crop(frame_bgr: np.ndarray, face: Face, size: int) -> np.ndarray:
     """
     Crop do modelo multitarefa: o quadrado da caixa do SCRFD, sem rotação. É o enquadramento das imagens do
     AffectNet e do UTKFace (medido: lado da imagem = 0.96–1.01x o lado da caixa, centrado).
