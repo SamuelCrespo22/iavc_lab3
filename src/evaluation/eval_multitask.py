@@ -90,7 +90,7 @@ def eval_utkface(model, baseline, detector, rows, out_dir) -> dict:
             continue
         ages.append(int(r["age"]))
         genders.append(GENDERS[int(r["gender"])])
-        for name, result in (("multitask", model.predict(multitask_crop(img, face))[0]),
+        for name, result in (("multitask", model.predict(multitask_crop(img, face, model.size))[0]),
                              ("baseline", baseline.predict(attribute_crop(img, face)))):
             preds[name][0].append(result.age)
             preds[name][1].append(result.gender)

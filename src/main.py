@@ -106,7 +106,8 @@ class App:
             if r.analysed and self.multitask is not None:
                 if self.modules["age_gender"] or self.modules["expression"]:
                     with self.monitor.stage("multitask"):
-                        age_gender, expression = self.multitask.predict(multitask_crop(frame, face))
+                        crop = multitask_crop(frame, face, self.multitask.size)
+                        age_gender, expression = self.multitask.predict(crop)
                     r.age_gender = age_gender if self.modules["age_gender"] else None
                     r.expression = expression if self.modules["expression"] else None
             elif r.analysed:

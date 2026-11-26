@@ -52,9 +52,10 @@ def expression_crop(frame_bgr: np.ndarray, face: Face) -> np.ndarray:
     return align_face(frame_bgr, keypoints_to_array(face), size=224, margin=0.2)
 
 
-def multitask_crop(frame_bgr: np.ndarray, face: Face) -> np.ndarray:
+def multitask_crop(frame_bgr: np.ndarray, face: Face, size: int = MULTITASK_INPUT_SIZE) -> np.ndarray:
     """
-    Crop do modelo multitarefa (MULTITASK_INPUT_SIZE): o quadrado da caixa do SCRFD, sem rotação. É o enquadramento
-    das imagens do AffectNet e do UTKFace (medido: lado da imagem = 0.96–1.01x o lado da caixa, centrado).
+    Crop do modelo multitarefa: o quadrado da caixa do SCRFD, sem rotação. É o enquadramento das imagens do
+    AffectNet e do UTKFace (medido: lado da imagem = 0.96–1.01x o lado da caixa, centrado).
+    size: o tamanho de entrada do modelo (MultiTaskEstimator.size), para não recortar pequeno e depois ampliar.
     """
-    return attribute_crop(frame_bgr, face, size=MULTITASK_INPUT_SIZE, scale=1.0)
+    return attribute_crop(frame_bgr, face, size=size, scale=1.0)
