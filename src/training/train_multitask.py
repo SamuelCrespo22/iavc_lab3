@@ -2,7 +2,7 @@
 Treino do modelo multitarefa: MobileNetV3-Small (ImageNet) partilhada pela expressão, género e idade.
 
     python -m src.training.prepare_multitask                    # uma vez: data/multitask/labels.csv
-    python -m src.training.train_multitask [--run nome]         # nome por omissão: data e hora
+    python -m src.training.train_multitask [--run nome] [--input-size 160]   # nome por omissão: data e hora
     python -m src.training.train_multitask --run teste --epochs 1 --limit 2000   # teste rápido
 
 Grava em models/multitask/<run>/:
@@ -40,14 +40,13 @@ DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 
 class FaceDataset(Dataset):
-    """Imagens originais (já recortadas pela cara) redimensionadas para MULTITASK_INPUT_SIZE."""
+    """Imagens originais (já recortadas pela cara) redimensionadas para size x size."""
 
-    def __init__(self, split: str, train: bool, limit: int | None = None):
+    def __init__(self, split: str, train: bool, size: int, limit: int | None = None):
         with open(MULTITASK_DATA_DIR / "labels.csv") as f:
             self.rows = [r for r in csv.DictReader(f) if r["split"] == split]
         if limit:
             self.rows = random.Random(0).sample(self.rows, min(limit, len(self.rows)))
-        size = MULTITASK_INPUT_SIZE
         # Recorte aleatório (85–100% da imagem): variação de escala e posição como a da caixa do SCRFD na app,
         # sem rotações nem translações que deixariam cantos pretos.
         resize = ([transforms.RandomResizedCrop(size, scale=(0.85, 1.0), ratio=(0.95, 1.05)),
@@ -102,9 +101,8 @@ class OnnxOutputs(nn.Module):
         return tuple(out[t] for t in TASKS)
 
 
-def export_onnx(model: nn.Module, path) -> None:
+def export_onnx(model: nn.Module, path, size: int) -> None:
     wrapper = OnnxOutputs(model.cpu().eval())
-    size = MULTITASK_INPUT_SIZE
     torch.onnx.export(wrapper, torch.randn(1, 3, size, size), path, input_names=["input"],
                       output_names=list(TASKS), opset_version=18,
                       dynamic_axes={"input": {0: "batch"}, **{t: {0: "batch"} for t in TASKS}})
@@ -122,12 +120,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--run", default=datetime.now().strftime("%Y%m%d_%H%M"))
     parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--input-size", type=int, default=MULTITASK_INPUT_SIZE, help="lado da imagem de entrada")
     parser.add_argument("--limit", type=int, help="só N imagens de treino e de validação (teste rápido)")
     args = parser.parse_args()
 
     run_dir = MODELS_DIR / "multitask" / args.run
     run_dir.mkdir(parents=True, exist_ok=True)
-    loader = lambda split, train: DataLoader(FaceDataset(split, train, args.limit), BATCH_SIZE, shuffle=train,
+    loader = lambda split, train: DataLoader(FaceDataset(split, train, args.input_size, args.limit), BATCH_SIZE,
+                                             shuffle=train,
                                              num_workers=4, persistent_workers=True)
     train_loader, val_loader = loader("train", True), loader("val", False)
 
@@ -135,7 +135,7 @@ def main():
     optimizer = torch.optim.AdamW([{"params": model.backbone.parameters(), "lr": LR_BACKBONE},
                                    {"params": model.heads.parameters(), "lr": LR_HEADS}], weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=1)
-    config = {"input_size": MULTITASK_INPUT_SIZE, "batch_size": BATCH_SIZE, "lr_backbone": LR_BACKBONE,
+    config = {"input_size": args.input_size, "batch_size": BATCH_SIZE, "lr_backbone": LR_BACKBONE,
               "lr_heads": LR_HEADS, "loss_weights": LOSS_WEIGHTS, "max_epochs": args.epochs, "patience": PATIENCE,
               "train_images": len(train_loader.dataset), "val_images": len(val_loader.dataset),
               "classes": CLASSES, "genders": GENDERS, "history": []}
@@ -174,7 +174,7 @@ def main():
             break
 
     model.load_state_dict(torch.load(run_dir / "multitask.pth", map_location="cpu")["model_state_dict"])
-    export_onnx(model, run_dir / "multitask.onnx")
+    export_onnx(model, run_dir / "multitask.onnx", args.input_size)
     print(f"Melhor época: {config['best_epoch']} | {run_dir}")
 
 

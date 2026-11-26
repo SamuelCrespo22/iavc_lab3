@@ -6,7 +6,7 @@ import cv2 as cv
 import numpy as np
 import onnxruntime as ort
 
-from src.config import EXPRESSION_UNCERTAIN_BELOW, GENDER_UNCERTAIN_BELOW, MULTITASK_INPUT_SIZE, onnx_providers
+from src.config import EXPRESSION_UNCERTAIN_BELOW, GENDER_UNCERTAIN_BELOW, onnx_providers
 from src.pipeline.age_gender import AgeGenderResult
 from src.pipeline.expression import CLASSES, ExpressionResult
 
@@ -24,13 +24,13 @@ class MultiTaskEstimator:
     def __init__(self, model_path):
         self.session = ort.InferenceSession(str(model_path), providers=onnx_providers())
         self.input_name = self.session.get_inputs()[0].name
+        self.size = self.session.get_inputs()[0].shape[-1]  # cada modelo traz o seu tamanho de entrada
         self.output_names = [o.name for o in self.session.get_outputs()]  # expression, gender, age
         self.gender_uncertain_below = GENDER_UNCERTAIN_BELOW
 
     def predict(self, crop_bgr: np.ndarray) -> tuple[AgeGenderResult, ExpressionResult]:
         """crop_bgr: multitask_crop na aplicação, ou uma imagem já recortada pela cara (datasets)."""
-        size = MULTITASK_INPUT_SIZE
-        img = cv.resize(cv.cvtColor(crop_bgr, cv.COLOR_BGR2RGB), (size, size), interpolation=cv.INTER_AREA)
+        img = cv.resize(cv.cvtColor(crop_bgr, cv.COLOR_BGR2RGB), (self.size, self.size), interpolation=cv.INTER_AREA)
         img = (img.astype(np.float32) / 255.0 - IMAGENET_MEAN) / IMAGENET_STD
         outputs = self.session.run(None, {self.input_name: np.transpose(img, (2, 0, 1))[np.newaxis]})
         out = {name: o[0] for name, o in zip(self.output_names, outputs)}
