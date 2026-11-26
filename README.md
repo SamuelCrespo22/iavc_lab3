@@ -6,7 +6,7 @@ Aplicação local, em Python, que processa o stream da webcam do portátil e faz
 
 1. **Deteção de caras** — bounding box, confiança e 5 landmarks faciais (SCRFD).
 2. **Alinhamento** — crop normalizado a partir dos landmarks (template ArcFace).
-3. **Estimação de atributos** — idade aparente, rótulo de género definido pelo dataset e expressão facial visível.
+3. **Estimação de atributos** — idade aparente, rótulo de género definido pelo dataset e expressão facial visível: com dois modelos separados (genderage + MobileNetV3 de expressão) ou com um modelo multitarefa.
 4. **Identificação em galeria fechada** (< 20 pessoas, com consentimento) — embeddings ArcFace + similaridade cosseno, com rejeição "Unknown".
 5. **Visualização e monitorização** — overlay em tempo real com FPS e latência.
 
@@ -14,9 +14,9 @@ O enunciado completo está em [assignment.pdf](assignment.pdf).
 
 ## Estado atual
 
-O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
-- **Feito:** deteção (avaliada no WIDER Face), alinhamento, identidade (avaliada), idade/género (avaliado no UTKFace), expressão (avaliada no AffectNet e no BTFER, exportada para ONNX e testada ao vivo), interface e monitorização.
-- **Falta:** testar as teclas `d`/`x` ao vivo, testes de sistema, consentimento escrito dos voluntários, relatório e vídeo de demonstração.
+O estado detalhado está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
+- **Feito:** deteção, alinhamento, identidade, idade/género e expressão, todos avaliados; interface e monitorização; modelo multitarefa (MobileNetV3 a 112/160/224) treinado, avaliado e na app; tabelas de comparação em `results/detection/comparison.md` e `results/comparison/comparison.md`.
+- **Falta:** ResNet multitarefa (Colab) e escolha da opção de atributos da app, testes de sistema ao vivo, consentimento escrito, relatório e vídeo.
 
 ## Estrutura do repositório
 
@@ -32,15 +32,17 @@ O estado detalhado de cada fase está em [MILESTONES.md](MILESTONES.md). Em resu
 │   │   ├── identity.py          #   embeddings ArcFace e galeria
 │   │   ├── age_gender.py        #   idade e género (InsightFace genderage)
 │   │   ├── expression.py        #   expressão facial (MobileNetV3, AffectNet)
+│   │   ├── multitask.py         #   idade, género e expressão com o modelo multitarefa
 │   │   └── monitoring.py        #   FPS, latência, CPU e memória
 │   ├── tools/
 │   │   ├── enrol.py             #   gerir a galeria a partir de fotos
 │   │   └── export_expression_onnx.py  #   exportar a expressão para ONNX
 │   ├── evaluation/              # Avaliação de cada componente
-│   │   ├── eval_detection_wider.py
-│   │   ├── eval_identity.py
-│   │   ├── eval_age_gender.py
-│   │   └── eval_expression_btfer.py
+│   │   ├── eval_detection_wider.py   # WIDER Face; --compare: tabelas dos detetores
+│   │   ├── eval_identity.py          # galeria: rank-1, FAR/FRR, threshold
+│   │   ├── eval_attributes.py        # expressão, idade e género de uma opção (separate ou multitarefa)
+│   │   ├── compare_models.py         # tabelas de todas as opções de atributos e da identidade
+│   │   └── tables.py                 # CSV, Markdown e tamanho dos modelos
 │   └── training/
 │       ├── train_expression.py  # Fine-tuning da expressão no AffectNet
 │       ├── multitask_model.py   # backbone partilhado (MobileNetV3 / ResNet): expressão, género e idade
@@ -73,7 +75,7 @@ pip install -r requirements.txt
 | `scrfd` | Wrapper do detetor SCRFD (pré/pós-processamento e NMS) |
 | `psutil` | CPU e memória no painel de monitorização |
 | `scikit-learn` | Métricas das avaliações |
-| `torch`, `torchvision`, `onnx`, `onnxscript` | Só para treinar o modelo de expressão e exportá-lo para ONNX |
+| `torch`, `torchvision`, `onnx`, `onnxscript` | Só para treinar (expressão e multitarefa) e exportar para ONNX |
 
 ## Modelos
 
@@ -86,8 +88,9 @@ Os pesos **não estão incluídos no repositório** (por tamanho e por termos de
 | `genderage.onnx` | InsightFace gender-age | Idade e género |
 | `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade |
 | `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Não usados |
-| `expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
-| `expression_best.onnx` + `expression_best.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois) | Expressão na aplicação. Gerados por `src/tools/export_expression_onnx.py`. Obrigatórios para a aplicação arrancar. |
+| `expression/expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
+| `expression/expression_best.onnx` + `.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois, na mesma pasta) | Expressão na aplicação (`separate`). Gerados por `src/tools/export_expression_onnx.py`. |
+| `multitask/<corrida>/` | Modelo multitarefa: `multitask.onnx` (+ `.data`), `multitask.pth`, `config.json`, `train.log` | Idade, género e expressão (`--attributes multitask`). Gerados por `src/training/train_multitask.py` |
 
 Os índices de saída do modelo de expressão seguem a ordem das pastas `0`–`7` do AffectNet usado no treino, que não é a ordem oficial do AffectNet. A ordem está em `CLASSES`, em `src/pipeline/expression.py`.
 
@@ -109,11 +112,12 @@ Nenhum dataset é versionado. As localizações estão em `src/config.py`:
 
 | Dataset | Pasta | Uso |
 |---|---|---|
-| UTKFace | `data/UTKFace/` | Avaliação de idade e género. Labels no nome: `[idade]_[género]_[etnia]_[data].jpg.chip.jpg` |
+| UTKFace | `data/UTKFace/` | Idade e género: treino do multitarefa (70%) e avaliação (15% de teste). Labels no nome: `[idade]_[género]_[etnia]_[data].jpg.chip.jpg` |
 | WIDER Face (val) | `data/WIDER/` (`WIDER_val/`, `wider_face_split/`, `eval_tools/`) | Avaliação do detetor |
-| Fotos da galeria | `data/dados_caras/<pessoa>/` | Avaliação da identidade (voluntários com consentimento) |
+| Fotos da galeria | `data/dados_caras/<pessoa>/` | Avaliação da identidade (voluntários com consentimento; nunca sair do portátil) |
 | AffectNet | `data/AffectNetCustom/` (`train/`, `val/`, `test/`) | Treino e avaliação intra-dataset da expressão |
 | BTFER | `data/BTFER/` | Avaliação cross-dataset da expressão |
+| Divisão do multitarefa | `data/multitask/labels.csv` | Gerado por `prepare_multitask.py` (AffectNet + UTKFace, com o split de cada imagem) |
 
 ## Execução
 
@@ -130,16 +134,21 @@ python -m src.tools.enrol --list | --remove NOME | --clear
 
 python -m src.evaluation.eval_detection_wider --detector scrfd.onnx --examples 6   # results/detection/
 python -m src.evaluation.eval_identity              # resultados em results/identity/
-python -m src.evaluation.eval_age_gender            # resultados em results/age_gender/
-python -m src.evaluation.eval_expression_btfer      # resultados em results/expression/
-python -m src.training.train_expression             # checkpoint em models/, métricas em results/expression/
+python -m src.evaluation.eval_attributes --model separate   # pipeline atual -> results/attributes/separate/
+python -m src.evaluation.eval_attributes --model mnet160    # uma corrida multitarefa -> results/attributes/mnet160/
+python -m src.evaluation.compare_models             # todas as opções -> results/comparison/comparison.md
+
+python -m src.training.train_expression             # checkpoint e métricas do treino em models/expression/
 python -m src.tools.export_expression_onnx          # .pth -> .onnx (+ .onnx.data), com verificação
 
 python -m src.training.prepare_multitask            # uma vez: data/multitask/labels.csv
 python -m src.training.train_multitask --run mnet160 --input-size 160                          # MobileNetV3
 python -m src.training.train_multitask --run r50_224_l4 --arch resnet50 --input-size 224 --freeze-until layer3
-python -m src.evaluation.eval_multitask --run mnet160   # teste, lado a lado com a pipeline atual
 ```
+
+As ResNet treinam-se numa GPU do Colab com [colab/train_multitask.ipynb](colab/train_multitask.ipynb) (instruções no próprio notebook); a pasta da corrida volta depois para `models/multitask/`.
+
+Organização dos resultados (`results/`, não versionado): `detection/<detetor>/`, `identity/`, `attributes/<opção>/` (uma pasta por opção de atributos, todas com o mesmo formato), `comparison/` (tabelas para o relatório) e `system/` (sessões da aplicação).
 
 Na aplicação, carregar em **`h`** para ver as teclas: parar/retomar a câmara, mudar de fonte, ligar/desligar módulos, registar/apagar pessoas e sair (**`q`**).
 
@@ -151,9 +160,8 @@ No macOS, na primeira execução, é preciso dar permissão de acesso à câmara
 - Não há tracking (excluído pelo enunciado): os atributos são calculados em cada frame, por isso as labels podem oscilar.
 - Os nomes ao registar/apagar pessoas escrevem-se no terminal; enquanto isso, a janela fica parada.
 - A utilização da GPU não é medida; o painel mostra só a CPU e a memória do processo.
-- Idade: MAE de cerca de 10 anos no UTKFace, com tendência para a média (sobrestima crianças, subestima idosos).
-- Expressão: accuracy de 54% no teste do AffectNet (8 classes) e de 64% no BTFER (7 classes). Fear é a classe que mais falha no BTFER, com recall 0.39.
-- Género: falha mais em crianças, idosos e no grupo Asian do UTKFace.
+- Pipeline `separate`: idade com MAE de ~10 anos no UTKFace e tendência para a média; género pior em crianças, idosos e no grupo Asian; expressão com 54% no AffectNet (8 classes) e 64% no BTFER (7 classes), Fear a pior no BTFER.
+- Multitarefa: melhor na idade (MAE ~6) e no género (~91%), mas avaliado no mesmo dataset em que treinou (UTKFace); na expressão fica abaixo do `separate` (o `mnet160`, 2–3 pontos). Números em `results/comparison/comparison.md`.
 - O threshold da identidade foi calibrado com só 4 pessoas e 10 casos de impostor na validação (ver MILESTONES.md).
 
 ## Considerações éticas

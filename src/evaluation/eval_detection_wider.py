@@ -31,10 +31,10 @@ from pathlib import Path
 
 import cv2 as cv
 import numpy as np
-import onnx
 from scipy.io import loadmat
 
-from src.config import DETECTION_THRESHOLD, DETECTOR_MODEL, MODELS_DIR, RESULTS_DIR, WIDER_DIR
+from src.config import DETECTION_THRESHOLD, DETECTOR_MODEL, RESULTS_DIR, WIDER_DIR
+from src.evaluation.tables import markdown_table, model_size, pct, write_csv
 from src.pipeline.detection import detect, load_detector
 
 IMAGES_DIR = WIDER_DIR / "WIDER_val" / "images"
@@ -219,25 +219,6 @@ def save_examples(preds: dict, gt: dict, n: int, out_dir: Path) -> None:
         cv.imwrite(str(out_dir / f"{key.replace('/', '__')}.jpg"), img)
 
 
-def write_csv(path: Path, rows: list[dict]) -> None:
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def model_size(name: str) -> tuple[float, float]:
-    """(milhões de parâmetros, MB do ficheiro) de um modelo ONNX em models/."""
-    path = MODELS_DIR / name
-    graph = onnx.load(str(path), load_external_data=False).graph
-    return sum(int(np.prod(t.dims)) for t in graph.initializer) / 1e6, path.stat().st_size / 2**20
-
-
-def markdown_table(rows: list[dict]) -> str:
-    lines = ["| " + " | ".join(rows[0]) + " |", "|" + "---|" * len(rows[0])]
-    return "\n".join(lines + ["| " + " | ".join(str(v) for v in r.values()) + " |" for r in rows])
-
-
 def write_comparison() -> None:
     """Tabelas lado a lado de todos os detetores já avaliados. Só lê os resultados guardados."""
     runs = {p.parent.name: json.loads(p.read_text()) for p in sorted(OUT_ROOT.glob("*/metrics.json"))}
@@ -256,7 +237,6 @@ def write_comparison() -> None:
     reference = next(iter(robust.values()))
     assert all([(r["factor"], r["group"]) for r in rows_] == [(r["factor"], r["group"]) for r in reference]
                for rows_ in robust.values()), "robustness.csv com grupos diferentes entre detetores"
-    pct = lambda v: f"{float(v):.1%}" if v else "—"
     robustness = [{"factor": r["factor"], "group": r["group"], "n_faces": r["n_faces"],
                    **{f"recall_{name}": pct(robust[name][i]["recall"]) for name in robust},
                    "n_faces_32px+": r["n_faces_32px+"],

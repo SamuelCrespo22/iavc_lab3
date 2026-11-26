@@ -15,12 +15,12 @@ from sklearn.metrics import (
     classification_report
 )
 
-from src.config import AFFECTNET_DIR, MODELS_DIR, RESULTS_DIR
+from src.config import AFFECTNET_DIR, EXPRESSION_CHECKPOINT
 from src.pipeline.expression import CLASSES
 
 DATA_DIR = AFFECTNET_DIR
-MODEL_DIR = MODELS_DIR                      # checkpoint (.pth)
-OUTPUT_DIR = RESULTS_DIR / "expression"     # métricas de teste
+MODEL_DIR = EXPRESSION_CHECKPOINT.parent    # checkpoint (.pth)
+OUTPUT_DIR = MODEL_DIR                      # métricas de teste do treino (a avaliação é o eval_attributes)
 
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -198,7 +198,7 @@ def evaluate(model, loader):
 best_val_f1 = 0.0
 epochs_without_improvement = 0
 
-best_model_path = MODEL_DIR / "expression_best.pth"
+best_model_path = EXPRESSION_CHECKPOINT
 
 for epoch in range(EPOCHS):
 
