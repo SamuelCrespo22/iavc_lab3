@@ -6,8 +6,7 @@ import torch.nn as nn
 from torchvision import models
 
 from src.pipeline.expression import CLASSES
-
-GENDERS = ["Male", "Female"]  # índice = label do UTKFace (0 = homem, 1 = mulher)
+from src.pipeline.multitask import GENDERS
 
 TASKS = {  # tarefa -> (nº de saídas, loss)
     "expression": (len(CLASSES), nn.CrossEntropyLoss()),
