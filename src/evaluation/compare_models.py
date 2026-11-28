@@ -8,6 +8,8 @@ terminada em models/multitask/ (com multitask.onnx); sem eval_attributes ainda, 
 import csv
 import json
 
+import numpy as np
+
 from src.config import ATTRIBUTES_RESULTS_DIR, MODELS_DIR, RESULTS_DIR
 from src.evaluation.tables import markdown_table, model_size, pct, write_csv
 from src.pipeline.expression import BTFER_CLASSES, CLASSES
@@ -21,6 +23,21 @@ DATASETS = (("AffectNet", "affectnet"), ("BTFER", "btfer"))
 
 def load(path):
     return json.loads(path.read_text()) if path.exists() else None
+
+
+def read_csv(path) -> list[dict]:
+    if not path.exists():
+        return []
+    with open(path) as f:
+        return list(csv.DictReader(f))
+
+
+def per_class(confusion_path) -> dict[str, tuple]:
+    """classe -> (precisão, recall, F1), de uma matriz guardada por eval_attributes (linhas = verdadeiro)."""
+    labels = confusion_path.read_text().splitlines()[0].split(": ")[1].split(",")
+    m = np.loadtxt(confusion_path, delimiter=",")
+    precision, recall = m.diagonal() / m.sum(0), m.diagonal() / m.sum(1)
+    return {c: (p, r, 2 * p * r / (p + r)) for c, p, r in zip(labels, precision, recall)}
 
 
 def options() -> dict[str, dict]:
@@ -50,13 +67,24 @@ def main():
                               for k, metric in (("acc.", "accuracy"), ("F1 macro", "f1_macro"))},
                    "ms/cara": round(m["latency_ms"], 1) if m else "—"}
                   for name, cols in described.items() for m in [results[name]]]
-    per_class = [{"Opção": name, "Dataset": label, **{c: pct(m[key]["recall_per_class"].get(c)) for c in CLASSES}}
-                 for name, m in evaluated.items() for label, key in DATASETS]
+    per_class_recall = [{"Opção": name, "Dataset": label,
+                         **{c: pct(m[key]["recall_per_class"].get(c)) for c in CLASSES}}
+                        for name, m in evaluated.items() for label, key in DATASETS]
     age_gender = [{"Opção": name, "Caras": u["n"], "MAE (anos)": round(u["age_mae"], 2), "RMSE": round(u["age_rmse"], 2),
                    "Viés": f"{u['age_bias']:+.2f}", "Faixa etária certa": pct(u["age_group_accuracy"]),
                    "Género acc.": pct(u["gender"]["accuracy"]), "Género F1": pct(u["gender"]["f1_macro"]),
                    "ms/cara": round(m["latency_ms"], 1)}
                   for name, m in evaluated.items() for u in [m["utkface"]]]
+    gender = [{"Opção": name, **{f"{c} {k}": pct(v) for c, values in per_class(
+                   ATTRIBUTES_RESULTS_DIR / name / "utkface_gender_confusion.csv").items()
+                                 for k, v in zip(("precisão", "recall", "F1"), values)}}
+              for name in evaluated]
+    conditions = [{"Opção": name, "Condição": r["condition"], "Detetadas": pct(r["detected"]),
+                   "MAE (anos)": round(float(r["age_mae"]), 2), "Viés": f"{float(r['age_bias']):+.2f}",
+                   "Faixa etária certa": pct(r["age_group_accuracy"]), "Género acc.": pct(r["gender_accuracy"]),
+                   "Género incerto": pct(r["gender_uncertain"]),
+                   "Género acc. (sem incertos)": pct(r["gender_accuracy_confident"])}
+                  for name in evaluated for r in read_csv(ATTRIBUTES_RESULTS_DIR / name / "by_condition.csv")]
 
     def by_group(key, value, fmt):
         rows = []
@@ -72,11 +100,12 @@ def main():
                  "Impostores": r[split]["n_impostor"], **{v: pct(r[split][k]) for k, v in IDENTITY_COLUMNS.items()}}
                 for r in (identity_metrics["enrol_2_images"], identity_metrics["enrol_1_image"])
                 for split in ("val", "test")]
-    with open(RESULTS_DIR / "identity" / "by_condition.csv") as f:
-        by_condition = [{"Condição": r["condition"], "Genuínos": r["n_genuine"], "Impostores": r["n_impostor"],
-                         **{v: pct(r[k]) for k, v in IDENTITY_COLUMNS.items()}} for r in csv.DictReader(f)]
+    by_condition = [{"Condição": r["condition"], "Genuínos": r["n_genuine"], "Impostores": r["n_impostor"],
+                     **{v: pct(r[k]) for k, v in IDENTITY_COLUMNS.items()}}
+                    for r in read_csv(RESULTS_DIR / "identity" / "by_condition.csv")]
 
-    tables = {"expression": expression, "expression_per_class": per_class, "age_gender": age_gender,
+    tables = {"expression": expression, "expression_per_class": per_class_recall, "age_gender": age_gender,
+              "gender_per_class": gender, "age_gender_by_condition": conditions,
               "age_mae_by_age_group": by_group("age_group", "age_mae", lambda v: f"{v:.1f}"),
               "gender_accuracy_by_race": by_group("race", "gender_accuracy", pct),
               "identity": identity, "identity_by_condition": by_condition}
@@ -100,7 +129,12 @@ def main():
         "Teste do UTKFace (15%, seed 0), pelo caminho da aplicação (SCRFD e o crop de cada modelo). Os multitarefa "
         "treinaram nos outros 70% do UTKFace; o genderage nunca o viu (cross-dataset; no UTKFace completo, 23 688 "
         "caras: MAE 9.82, género 85.8%). Viés > 0: sobrestima. Faixa etária certa: mesma década (70+ junta o resto).",
-        table("age_gender"), "### MAE da idade por faixa etária", table("age_mae_by_age_group"),
+        table("age_gender"), "### Género por classe (labels do UTKFace)", table("gender_per_class"),
+        "### Por condição da imagem",
+        "O mesmo teste com a imagem degradada (`eval_conditions.py`): desfocada (sigma 3 px), escura (brilho a 25% "
+        "e ruído), baixa resolução (cara reduzida a 40 px, o mínimo da app) e oclusão (boca e queixo tapados). "
+        "Género incerto: confiança abaixo do limiar da app (0.65), mostrado como \"Uncertain\".",
+        table("age_gender_by_condition"), "### MAE da idade por faixa etária", table("age_mae_by_age_group"),
         "### Accuracy do género por etnia (labels do UTKFace)", table("gender_accuracy_by_race"),
         "## Identidade",
         "Um só modelo (ArcFace R50, embedding de 512 e similaridade cosseno): compara-se o número de fotos de "

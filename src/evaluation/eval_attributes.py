@@ -106,11 +106,16 @@ def age_gender_metrics(records: list[dict]) -> dict:
                                              GENDERS)}
 
 
-def eval_utkface(option, rows, out_dir) -> tuple[dict, tuple]:
-    """Idade e género no teste do UTKFace. Devolve as métricas e uma (imagem, cara) para medir a latência."""
+def predict_utkface(option, rows, degrade=None) -> tuple[list[dict], int, tuple]:
+    """
+    Idade e género de cada imagem pelo caminho da aplicação. degrade: função aplicada à imagem original antes da
+    borda (eval_conditions.py). Devolve as previsões, o nº de imagens sem cara e uma (imagem, cara) para a latência.
+    """
     detector, records, no_face, sample = load_detector(), [], 0, None
     for r in rows:
         img = cv.imread(str(DATA_DIR / r["path"]))
+        if degrade:
+            img = degrade(img)
         pad = int(PADDING * max(img.shape[:2]))
         img = cv.copyMakeBorder(img, pad, pad, pad, pad, cv.BORDER_CONSTANT, value=0)
         face = largest_face(detector, img)
@@ -121,8 +126,14 @@ def eval_utkface(option, rows, out_dir) -> tuple[dict, tuple]:
         age_gender, _ = option.analyse(img, face)
         records.append({"age": int(r["age"]), "gender": GENDERS[int(r["gender"])],
                         "race": RACES[int(Path(r["path"]).name.split("_")[2])],
-                        "pred_age": age_gender.age, "pred_gender": age_gender.gender})
+                        "pred_age": age_gender.age, "pred_gender": age_gender.gender,
+                        "gender_confidence": age_gender.gender_confidence})
+    return records, no_face, sample
 
+
+def eval_utkface(option, rows, out_dir) -> tuple[dict, tuple]:
+    """Idade e género no teste do UTKFace. Devolve as métricas e uma (imagem, cara) para medir a latência."""
+    records, no_face, sample = predict_utkface(option, rows)
     groups = []
     for key, group_of in (("age_group", lambda r: age_group(r["age"])), ("race", lambda r: r["race"]),
                           ("gender", lambda r: r["gender"])):

@@ -19,6 +19,9 @@ BTFER/
 
 gallery/
 
+# relatório (LaTeX): só local
+relatorio/
+
 outputs/
 results/
 *.mp4

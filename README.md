@@ -14,9 +14,9 @@ O enunciado completo está em [assignment.pdf](assignment.pdf).
 
 ## Estado atual
 
-O estado detalhado está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
-- **Feito:** deteção, alinhamento, identidade, idade/género e expressão, todos avaliados; interface e monitorização; modelo multitarefa (MobileNetV3 a 112/160/224 e ResNet-50 a 224) treinado e avaliado, com a ResNet-50 na app; tabelas de comparação em `results/detection/comparison.md` e `results/comparison/comparison.md`.
-- **Falta:** testes de sistema ao vivo, consentimento escrito, relatório e vídeo.
+O estado detalhado está em [MILESTONES.md](MILESTONES.md). Em resumo (28 nov):
+- **Feito:** deteção, alinhamento, identidade, idade/género (também por condição da imagem) e expressão, todos avaliados; interface e monitorização; modelo multitarefa (MobileNetV3 a 112/160/224 e ResNet-50 a 224) treinado e avaliado, com a ResNet-50 na app; testes de sistema ao vivo; tabelas de comparação em `results/detection/comparison.md` e `results/comparison/comparison.md`.
+- **Falta:** relatório e vídeo.
 
 ## Estrutura do repositório
 
@@ -39,8 +39,11 @@ O estado detalhado está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
 │   │   ├── eval_detection_wider.py   # WIDER Face; --compare: tabelas dos detetores
 │   │   ├── eval_identity.py          # galeria: rank-1, FAR/FRR, threshold
 │   │   ├── eval_attributes.py        # expressão, idade e género de uma opção (separate ou multitarefa)
+│   │   ├── eval_conditions.py        # idade e género com a imagem degradada (desfocada, escura, ...)
+│   │   ├── eval_latency.py           # inferência de cada modelo com o CoreML e só com a CPU
 │   │   ├── compare_models.py         # tabelas de todas as opções de atributos e da identidade
 │   │   └── tables.py                 # CSV, Markdown e tamanho dos modelos
+│   ├── graphs/                  # Figuras do relatório (python -m src.graphs -> results/images/)
 │   └── training/
 │       ├── train_expression.py  # Fine-tuning da expressão no AffectNet
 │       ├── multitask_model.py   # backbone partilhado (MobileNetV3 / ResNet): expressão, género e idade
@@ -52,7 +55,9 @@ O estado detalhado está em [MILESTONES.md](MILESTONES.md). Em resumo (26 nov):
 ├── data/                        # Datasets (não versionados; ver abaixo)
 ├── gallery/                     # Embeddings da galeria (não versionados)
 ├── results/                     # Resultados das avaliações (não versionados)
+├── relatorio/                   # Relatório (LaTeX): rel.tex + secoes/ (não versionado)
 ├── assignment.pdf               # Enunciado
+├── MILESTONES.md                # Estado do trabalho e decisões
 └── requirements.txt
 ```
 
@@ -72,50 +77,57 @@ pip install -r requirements.txt
 | `onnxruntime` | Inferência de todos os modelos na aplicação (CoreML no macOS, CPU como fallback) |
 | `scrfd` | Wrapper do detetor SCRFD (pré/pós-processamento e NMS) |
 | `psutil` | CPU e memória no painel de monitorização |
+| `matplotlib` | Figuras do relatório (`src/graphs/`) |
 | `scikit-learn` | Métricas das avaliações |
 | `torch`, `torchvision`, `onnx`, `onnxscript` | Só para treinar (expressão e multitarefa) e exportar para ONNX |
 
 ## Modelos
 
-Os pesos **não estão incluídos no repositório** (por tamanho e por termos de licença). Devem ser colocados em `models/`, na raiz do repositório:
+Nenhum peso está no repositório git (por tamanho e por termos de licença). Ficam todos em `models/`, na raiz do repositório. Por omissão, a aplicação precisa de `scrfd.onnx`, `w600k_r50.onnx` e da pasta `multitask/r50_224_full/`.
 
-| Ficheiro | Modelo | Uso |
-|----------|--------|-----|
+### Treinados por nós (incluídos no zip da entrega)
+
+| Ficheiros em `models/` | Modelo | Uso |
+|---|---|---|
+| `multitask/r50_224_full/`: `multitask.onnx`, `multitask.onnx.data`, `config.json` | ResNet-50 multitarefa (expressão, género e idade), 224 px | Atributos na aplicação (por omissão) |
+| `expression/`: `expression_best.onnx`, `expression_best.onnx.data` | MobileNetV3-Small com fine-tuning no AffectNet | Expressão com `--attributes separate` |
+
+O `.onnx.data` tem os pesos: cada par fica na mesma pasta, sem mudar os nomes. Geram-se de novo com `train_multitask.py` (ou o notebook do Colab) e `train_expression.py`, que gravam também o checkpoint PyTorch (`.pth`, não incluído). Partem dos pesos do ImageNet do torchvision e foram treinados com o AffectNet e o UTKFace, por isso destinam-se só a uso académico, não comercial.
+
+Os índices de saída da expressão seguem a ordem das pastas `0`–`7` do AffectNet usado no treino, que não é a ordem oficial do AffectNet (o dataset não a documenta; identificámo-la a partir das imagens de cada pasta). A ordem está em `CLASSES`, em `src/pipeline/expression.py`.
+
+### Pré-treinados (a descarregar)
+
+| Ficheiro em `models/` | Modelo | Uso |
+|---|---|---|
 | `scrfd.onnx` | SCRFD-2.5GF com keypoints (0.82 M parâmetros; confirmado pelo AP no WIDER) | Deteção de caras (por omissão) |
 | `det_10g.onnx` | SCRFD-10GF | Deteção (alternativa mais precisa, `--detector det_10g.onnx`) |
-| `genderage.onnx` | InsightFace gender-age | Idade e género |
 | `w600k_r50.onnx` | ArcFace ResNet-50 (WebFace600K) | Embeddings de identidade |
-| `2d106det.onnx`, `1k3d68.onnx` | Landmarks 2D/3D | Não usados |
-| `expression/expression_best.pth` | MobileNetV3-Small com fine-tuning no AffectNet | Checkpoint gerado por `src/training/train_expression.py` |
-| `expression/expression_best.onnx` + `.onnx.data` | O mesmo modelo exportado para ONNX (o `.data` tem os pesos; são precisos os dois, na mesma pasta) | Expressão na aplicação (`separate`). Gerados por `src/training/train_expression.py`. |
-| `multitask/<corrida>/` | Modelo multitarefa: `multitask.onnx` (+ `.data`), `multitask.pth`, `config.json`, `train.log` | Idade, género e expressão (`--attributes multitask`). Gerados por `src/training/train_multitask.py` |
+| `genderage.onnx` | InsightFace gender-age | Idade e género com `--attributes separate` |
 
-Os índices de saída do modelo de expressão seguem a ordem das pastas `0`–`7` do AffectNet usado no treino, que não é a ordem oficial do AffectNet. A ordem está em `CLASSES`, em `src/pipeline/expression.py`.
-
-O `scrfd.onnx` vem da pasta `models/` do repositório [cospectrum/scrfd](https://github.com/cospectrum/scrfd/tree/main/models), que é o mesmo da biblioteca `scrfd`.
-
-Os ficheiros `det_10g.onnx`, `genderage.onnx`, `w600k_r50.onnx`, `2d106det.onnx` e `1k3d68.onnx` vêm do pack **buffalo_l** do [InsightFace](https://github.com/deepinsight/insightface/tree/master/python-package):
+O `scrfd.onnx` vem do repositório [cospectrum/scrfd](https://github.com/cospectrum/scrfd/tree/main/models) (o da biblioteca `scrfd`); os outros três, do pack **buffalo_l** do [InsightFace](https://github.com/deepinsight/insightface/tree/master/python-package):
 
 ```bash
 mkdir -p models
+curl -L -o models/scrfd.onnx https://raw.githubusercontent.com/cospectrum/scrfd/main/models/scrfd.onnx
 curl -L -o /tmp/buffalo_l.zip https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip
-unzip -o /tmp/buffalo_l.zip -d models
+unzip -o /tmp/buffalo_l.zip -d models    # traz também 2d106det.onnx e 1k3d68.onnx, que não são usados
 ```
 
-> **Licença:** os modelos pré-treinados do InsightFace estão disponíveis apenas para **investigação não comercial**. O `scrfd.onnx` do cospectrum/scrfd é um derivado do InsightFace: esse repositório aplica a licença Apache 2.0 só ao código e diz que o modelo é *"used for testing purposes only"*. Por isso segue as mesmas condições. Não redistribuir nenhum dos pesos.
+> **Licença:** os modelos pré-treinados do InsightFace estão disponíveis apenas para **investigação não comercial**. O `scrfd.onnx` do cospectrum/scrfd é um derivado do InsightFace: esse repositório aplica a licença Apache 2.0 só ao código e diz que o modelo é *"used for testing purposes only"*. Por isso segue as mesmas condições. Nenhum destes pesos é redistribuído.
 
 ## Datasets
 
-Nenhum dataset é versionado. As localizações estão em `src/config.py`:
+Nenhum dataset é versionado nem incluído na entrega. São usados só para investigação académica, nos termos de cada um. As localizações estão em `src/config.py`:
 
-| Dataset | Pasta | Uso |
-|---|---|---|
-| UTKFace | `data/UTKFace/` | Idade e género: treino do multitarefa (70%) e avaliação (15% de teste). Labels no nome: `[idade]_[género]_[etnia]_[data].jpg.chip.jpg` |
-| WIDER Face (val) | `data/WIDER/` (`WIDER_val/`, `wider_face_split/`, `eval_tools/`) | Avaliação do detetor |
-| Fotos da galeria | `data/dados_caras/<pessoa>/` | Avaliação da identidade (voluntários com consentimento; nunca sair do portátil) |
-| AffectNet | `data/AffectNetCustom/` (`train/`, `val/`, `test/`) | Treino e avaliação intra-dataset da expressão |
-| BTFER | `data/BTFER/` | Avaliação cross-dataset da expressão |
-| Divisão do multitarefa | `data/multitask/labels.csv` | Gerado por `prepare_multitask.py` (AffectNet + UTKFace, com o split de cada imagem) |
+| Dataset | Origem | Pasta | Uso |
+|---|---|---|---|
+| WIDER Face (val) | [shuoyang1213.me/WIDERFACE](http://shuoyang1213.me/WIDERFACE/) | `data/WIDER/` (`WIDER_val/`, `wider_face_split/`, `eval_tools/`) | Avaliação do detetor |
+| UTKFace (Aligned & Cropped, 200 px) | [susanqq.github.io/UTKFace](https://susanqq.github.io/UTKFace/) | `data/UTKFace/` | Idade e género: treino do multitarefa (70%) e avaliação (15% de teste). Labels no nome: `[idade]_[género]_[etnia]_[data].jpg.chip.jpg` |
+| AffectNet alinhado (112 px, 8 classes; treino até 5000 por classe, validação 100, teste 400; divisão já feita) | [kaggle.com/datasets/yakhyokhuja/affectnetaligned](https://www.kaggle.com/datasets/yakhyokhuja/affectnetaligned) | `data/AffectNetCustom/` (`train/`, `val/`, `test/`, uma pasta `0`–`7` por classe) | Treino e avaliação intra-dataset da expressão |
+| BTFER (256 px, 7 classes, 300 por classe) | [kaggle.com/datasets/gipinze/btfer7](https://www.kaggle.com/datasets/gipinze/btfer7) | `data/BTFER/` | Avaliação cross-dataset da expressão |
+| Fotos da galeria | Fotos dos próprios participantes | `data/dados_caras/<pessoa>/` | Avaliação da identidade (nunca sair do portátil; ver [Galeria de identidades](#galeria-de-identidades)) |
+| Divisão do multitarefa | `prepare_multitask.py` | `data/multitask/labels.csv` | AffectNet + UTKFace, com o split de cada imagem |
 
 ## Execução
 
@@ -134,7 +146,10 @@ python -m src.evaluation.eval_detection_wider --detector scrfd.onnx   # results/
 python -m src.evaluation.eval_identity              # resultados em results/identity/
 python -m src.evaluation.eval_attributes --model separate   # pipeline atual -> results/attributes/separate/
 python -m src.evaluation.eval_attributes --model mnet160    # uma corrida multitarefa -> results/attributes/mnet160/
+python -m src.evaluation.eval_conditions --model r50_224_full  # idade/género por condição -> .../by_condition.csv
 python -m src.evaluation.compare_models             # todas as opções -> results/comparison/comparison.md
+python -m src.evaluation.eval_latency               # inferência CoreML vs CPU -> results/system/model_latency.csv
+python -m src.graphs                               # figuras do relatório -> results/images/ (PDF e PNG)
 
 python -m src.training.train_expression             # models/expression/: .pth e .onnx (+ .onnx.data), verificado
 
@@ -143,23 +158,36 @@ python -m src.training.train_multitask --run mnet160 --input-size 160           
 python -m src.training.train_multitask --run r50_224_full --arch resnet50 --input-size 224   # ResNet-50 (na app)
 ```
 
-As ResNet treinam-se numa GPU do Colab com [colab/train_multitask.ipynb](colab/train_multitask.ipynb) (instruções no próprio notebook); a pasta da corrida volta depois para `models/multitask/`.
+A ResNet-50 treina-se numa GPU do Colab com [colab/train_multitask.ipynb](colab/train_multitask.ipynb) (instruções no próprio notebook); a pasta da corrida volta depois para `models/multitask/`.
 
-Organização dos resultados (`results/`, não versionado): `detection/<detetor>/`, `identity/`, `attributes/<opção>/` (uma pasta por opção de atributos, todas com o mesmo formato), `comparison/` (tabelas para o relatório) e `system/` (sessões da aplicação).
+Organização dos resultados (`results/`, não versionado): `detection/<detetor>/`, `identity/`, `attributes/<opção>/` (uma pasta por opção de atributos, todas com o mesmo formato), `comparison/` (tabelas para o relatório), `system/` (sessões da aplicação e latência dos modelos) e `images/` (figuras do relatório).
+
+O relatório está em `relatorio/` (não versionado; `rel.tex` e uma secção por ficheiro em `secoes/`). Cada tabela e figura tem um comentário `% Fonte:` com o ficheiro de `results/` e o comando que o gera. As figuras vêm de `results/images/`; no Overleaf, pôr os PDF numa pasta `images/` ao lado do `rel.tex`.
 
 Na aplicação, carregar em **`h`** para ver as teclas: parar/retomar a câmara, mudar de fonte, ligar/desligar módulos, registar/apagar pessoas e sair (**`q`**).
 
 No macOS, na primeira execução, é preciso dar permissão de acesso à câmara ao terminal/IDE (Definições do Sistema → Privacidade e Segurança → Câmara).
+
+## Galeria de identidades
+
+A galeria é tratada como um dado biométrico e fica só no portátil.
+
+- **Registo:** antes de registar alguém, explicar o que é guardado, para quê e como se apaga, e registar só quem concordar. Com a tecla `e`, a aplicação pede no terminal o nome e a confirmação do consentimento (`[s/N]`); sem um "s", o registo é cancelado.
+- **O que é guardado:** em `gallery/gallery.npz`, o nome e um embedding ArcFace (512 valores) por imagem: 5 frames da webcam com `e`, ou uma foto por ficheiro com `src.enrol`. Nunca se guardam imagens nem vídeo. O `gallery/threshold.json` tem só o threshold calibrado.
+- **Nada sai do portátil:** toda a inferência é local e nenhum frame, crop ou embedding é enviado para serviços externos. A galeria, as fotos (`data/dados_caras/`) e os resultados da identidade (`results/identity/`, que têm os nomes) não estão no git nem na entrega.
+- **Remoção:** `d` apaga uma pessoa e `x` a galeria toda (com confirmação); fora da aplicação, `python -m src.enrol --clear`. No fim do trabalho, apagar também `data/dados_caras/` e `results/identity/`.
+- **Uso:** demonstrador académico; não serve para controlo de acessos, presenças, vigilância ou outras decisões com consequências para as pessoas.
 
 ## Limitações conhecidas
 
 - Os comandos têm de ser corridos a partir da raiz do repositório (`python -m src...`).
 - Não há tracking (excluído pelo enunciado): os atributos são calculados em cada frame, por isso as labels podem oscilar.
 - Os nomes ao registar/apagar pessoas escrevem-se no terminal; enquanto isso, a janela fica parada.
-- A utilização da GPU não é medida; o painel mostra só a CPU e a memória do processo.
+- A utilização da GPU não é medida: o painel mostra só a CPU e a memória do processo (o CoreML reparte o modelo entre CPU, GPU e Neural Engine e não mostra essa utilização por processo).
 - Pipeline `separate`: idade com MAE de ~10 anos no UTKFace e tendência para a média; género pior em crianças, idosos e no grupo Asian; expressão com 54% no AffectNet (8 classes) e 64% no BTFER (7 classes), Fear a pior no BTFER.
 - Multitarefa: melhor na idade (MAE 5.4–6.3) e no género (90–92%), mas avaliado no mesmo dataset em que treinou (UTKFace); no AffectNet fica 2–5 pontos abaixo do `separate` (a ResNet-50 em 3), no BTFER a ResNet-50 é a melhor. Contempt fraco a 224 (23%). Números em `results/comparison/comparison.md`.
-- Latência: o CoreML não suporta parte das operações da MobileNetV3 (hard-swish, squeeze-excitation) e parte-a em ~20 blocos, ficando mais lenta do que no CPU (mnet160: 4.8 vs 1.3 ms); a ResNet-50 corre quase toda no CoreML (1.8 ms) mas seria ~15× mais lenta só com CPU (34 ms).
+- Condição da imagem (UTKFace degradado, `results/comparison/comparison.md`): a pior é a escuridão, com a ResNet-50 a passar de MAE 5.4 para 8.6 e de 91% para 86.5% no género (no `separate`, MAE 17 e género 74%). Com a imagem degradada há mais géneros marcados "Uncertain" (ResNet-50: 7% → 14% no escuro).
+- Latência: o CoreML não suporta a ativação hard-swish da MobileNetV3 (19 nós) e parte-a em 21 blocos, ficando mais lenta do que só com a CPU (mnet160: 4.9 vs 1.4 ms); a ResNet-50 corre quase toda no CoreML (2 blocos, 1.7 ms), mas só com a CPU demora 38 ms. Medido com `eval_latency.py` (`results/system/model_latency.csv`).
 - O threshold da identidade foi calibrado com só 4 pessoas e 10 casos de impostor na validação (ver MILESTONES.md).
 
 ## Considerações éticas
@@ -167,4 +195,4 @@ No macOS, na primeira execução, é preciso dar permissão de acesso à câmara
 - **Idade** é uma estimativa de idade *aparente*, não a idade real.
 - **Género** é uma classificação visual limitada às categorias do dataset de treino; não é uma determinação da identidade de género de ninguém.
 - **Expressão** descreve a configuração visível da cara; não é evidência do estado emocional da pessoa.
-- A **galeria de identidades** deve conter apenas voluntários que deram consentimento, guardar só os dados necessários, ter mecanismo de remoção e nunca ser incluída no repositório (a pasta `gallery/` está no `.gitignore`). O sistema é um demonstrador académico e não deve ser usado para controlo de acessos, presenças ou vigilância.
+- A **galeria de identidades** contém só quem concordou em ser registado, guarda só embeddings, fica no portátil e pode ser apagada a qualquer momento (ver [Galeria de identidades](#galeria-de-identidades)). O sistema é um demonstrador académico e não deve ser usado para controlo de acessos, presenças ou vigilância.
